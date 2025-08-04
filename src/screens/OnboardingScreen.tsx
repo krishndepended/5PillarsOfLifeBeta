@@ -1,12 +1,22 @@
-// src/screens/OnboardingScreen.tsx - INTERACTIVE NEURAL EDUCATION
-import React, { useState, useEffect } from 'react';
-import {
-  View, Text, StyleSheet, TouchableOpacity, Dimensions,
-  Platform, Animated, SafeAreaView, ScrollView
+// src/screens/OnboardingScreen.tsx - COMPLETE ONBOARDING SYSTEM
+import React, { useEffect, useState, useRef } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity, 
+  ScrollView,
+  Platform, 
+  Animated, 
+  Dimensions,
+  Image
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAppContext } from '../context/AppContext';
+import { useAppDataSelectors, useAppData } from '../context/AppDataContext';
+import { usePerformanceOptimization, PerformanceMonitor } from '../hooks/usePerformanceOptimization';
+import { safeNavigate, safeGet } from '../utils/SafeNavigation';
 
 const { width, height } = Dimensions.get('window');
 
@@ -17,841 +27,811 @@ const Colors = {
   textSecondary: '#6B7280',
   accent: '#3B82F6',
   success: '#10B981',
-  // Pillar colors
   body: '#EF4444',
   mind: '#3B82F6',
   heart: '#EC4899',
   spirit: '#8B5CF6',
   diet: '#10B981',
-  // Onboarding colors
-  primary: '#8B5CF6',
-  secondary: '#EC4899',
+  warning: '#F59E0B',
 };
 
-const OnboardingScreen = ({ navigation }) => {
-  const { dispatch, actions } = useAppContext();
+interface OnboardingStep {
+  id: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  icon: string;
+  color: string;
+  culturalWisdom?: string;
+  sanskritTerm?: string;
+}
+
+interface UserGoals {
+  primaryFocus: string[];
+  experienceLevel: 'beginner' | 'intermediate' | 'advanced';
+  timeCommitment: number; // minutes per day
+  weeklyGoal: number; // sessions per week
+  culturalInterest: boolean;
+  ayurvedicFocus: boolean;
+}
+
+const OnboardingScreen = () => {
+  const navigation = useNavigation();
+  const { actions } = useAppData();
+  const { userProfile, isInitialized } = useAppDataSelectors();
+  const { measurePerformance } = usePerformanceOptimization();
+
+  // Animation refs
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(width)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
+  // Onboarding state
   const [currentStep, setCurrentStep] = useState(0);
-  const [userResponses, setUserResponses] = useState({
-    name: '',
-    experience: '',
-    goals: [],
-    preferredTime: '',
-    difficulty: 'Beginner'
+  const [userGoals, setUserGoals] = useState<UserGoals>({
+    primaryFocus: [],
+    experienceLevel: 'beginner',
+    timeCommitment: 15,
+    weeklyGoal: 14,
+    culturalInterest: true,
+    ayurvedicFocus: false
   });
 
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
-  const slideAnim = React.useRef(new Animated.Value(50)).current;
+  const onboardingSteps: OnboardingStep[] = [
+    {
+      id: 'welcome',
+      title: 'Welcome to 5PillarsOfLife',
+      subtitle: 'Neural Optimization Platform',
+      description: 'Discover the ancient wisdom of holistic wellness through modern AI-powered guidance. Your journey to complete life transformation begins now.',
+      icon: 'sparkles',
+      color: Colors.spirit,
+      culturalWisdom: 'पञ्च स्तम्भ जीवन - Five pillars supporting the temple of life',
+      sanskritTerm: 'Pancha Stambha Jeevan'
+    },
+    {
+      id: 'body',
+      title: 'BODY - Your Physical Temple',
+      subtitle: 'शरीरं खलु धर्म साधनम्',
+      description: 'Your body is the vehicle for all achievements. Through mindful movement, proper rest, and energy optimization, we build unshakeable physical foundation.',
+      icon: 'fitness',
+      color: Colors.body,
+      culturalWisdom: 'The body is indeed the means of dharma - ancient Vedic wisdom',
+      sanskritTerm: 'Sharira Shuddhi'
+    },
+    {
+      id: 'mind',
+      title: 'MIND - Your Cognitive Power',
+      subtitle: 'मन एव मनुष्याणां कारणं बन्ध मोक्षयोः',
+      description: 'The mind is the cause of both bondage and liberation. Through cognitive training and neural optimization, unlock your infinite mental potential.',
+      icon: 'library',
+      color: Colors.mind,
+      culturalWisdom: 'Mind is the cause of both bondage and liberation - Amrita Bindu Upanishad',
+      sanskritTerm: 'Manas Shakti'
+    },
+    {
+      id: 'heart',
+      title: 'HEART - Your Emotional Intelligence',
+      subtitle: 'हृदय में परमात्मा का वास',
+      description: 'The supreme consciousness resides in the heart. Cultivate emotional wisdom, empathy, and loving-kindness to connect with your deepest self.',
+      icon: 'heart',
+      color: Colors.heart,
+      culturalWisdom: 'The Supreme Self dwells in the heart - Chandogya Upanishad',
+      sanskritTerm: 'Hridaya Gyan'
+    },
+    {
+      id: 'spirit',
+      title: 'SPIRIT - Your Consciousness',
+      subtitle: 'आत्मा तत्त्वमसि',
+      description: 'You are that eternal consciousness. Through meditation, self-inquiry, and spiritual practices, realize your true infinite nature.',
+      icon: 'leaf',
+      color: Colors.spirit,
+      culturalWisdom: 'Thou art That - the great Upanishadic truth',
+      sanskritTerm: 'Atma Gyan'
+    },
+    {
+      id: 'diet',
+      title: 'DIET - Your Nutritional Wisdom',
+      subtitle: 'अन्नं ब्रह्म',
+      description: 'Food is Brahman - the creative force. Through authentic Indian vegetarian cuisine and Ayurvedic principles, nourish body and soul.',
+      icon: 'restaurant',
+      color: Colors.diet,
+      culturalWisdom: 'Food is divine energy - Taittiriya Upanishad',
+      sanskritTerm: 'Ahara Vidya'
+    },
+    {
+      id: 'goals',
+      title: 'Set Your Intentions',
+      subtitle: 'संकल्प शक्ति',
+      description: 'The power of intention shapes reality. Let\'s personalize your journey based on your goals, experience, and cultural interests.',
+      icon: 'target',
+      color: Colors.accent,
+      culturalWisdom: 'Intention is the seed of all achievement',
+      sanskritTerm: 'Sankalpa'
+    }
+  ];
 
   useEffect(() => {
+    const measurement = measurePerformance('OnboardingScreen');
+    
+    // Start animations
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
+        duration: 800,
+        useNativeDriver: Platform.OS !== 'web',
       }),
       Animated.timing(slideAnim, {
         toValue: 0,
         duration: 600,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       })
-    ]).start();
+    ]).start(() => {
+      measurement.end();
+    });
+
+    // Update progress animation
+    Animated.timing(progressAnim, {
+      toValue: (currentStep + 1) / onboardingSteps.length,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
   }, [currentStep]);
 
-  const onboardingSteps = [
-    {
-      id: 'welcome',
-      title: 'Welcome to 5 Pillars',
-      subtitle: 'Neural Optimization Platform',
-      component: WelcomeStep
-    },
-    {
-      id: 'science',
-      title: 'The Science',
-      subtitle: 'Understanding Neuroplasticity',
-      component: ScienceStep
-    },
-    {
-      id: 'pillars',
-      title: 'The 5 Pillars',
-      subtitle: 'Your Neural Foundation',
-      component: PillarsStep
-    },
-    {
-      id: 'personalization',
-      title: 'Personalization',
-      subtitle: 'Tailored to Your Journey',
-      component: PersonalizationStep
-    },
-    {
-      id: 'goals',
-      title: 'Set Your Goals',
-      subtitle: 'Define Your Neural Targets',
-      component: GoalsStep
-    },
-    {
-      id: 'ready',
-      title: 'Ready to Begin',
-      subtitle: 'Your Neural Journey Starts Now',
-      component: ReadyStep
-    }
-  ];
-
-  const nextStep = () => {
+  const handleNext = () => {
     if (currentStep < onboardingSteps.length - 1) {
-      setCurrentStep(currentStep + 1);
+      // Slide out animation
+      Animated.timing(slideAnim, {
+        toValue: -width,
+        duration: 300,
+        useNativeDriver: Platform.OS !== 'web',
+      }).start(() => {
+        setCurrentStep(currentStep + 1);
+        slideAnim.setValue(width);
+        
+        // Slide in animation
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: Platform.OS !== 'web',
+        }).start();
+      });
     } else {
       completeOnboarding();
     }
   };
 
-  const prevStep = () => {
+  const handleBack = () => {
     if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
+      // Slide out animation
+      Animated.timing(slideAnim, {
+        toValue: width,
+        duration: 300,
+        useNativeDriver: Platform.OS !== 'web',
+      }).start(() => {
+        setCurrentStep(currentStep - 1);
+        slideAnim.setValue(-width);
+        
+        // Slide in animation
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: Platform.OS !== 'web',
+        }).start();
+      });
     }
   };
 
-  const completeOnboarding = () => {
-    // Update user profile with onboarding data
-    actions.updateProfile({
-      name: userResponses.name || 'Neural Explorer'
+  const handleSkip = () => {
+    // Set basic defaults and complete onboarding
+    setUserGoals({
+      primaryFocus: ['mind', 'body'],
+      experienceLevel: 'beginner',
+      timeCommitment: 15,
+      weeklyGoal: 14,
+      culturalInterest: true,
+      ayurvedicFocus: false
     });
-    
-    actions.updatePreferences({
-      reminderTime: userResponses.preferredTime || '07:00',
-      difficultyLevel: userResponses.difficulty
-    });
-
-    actions.updateGoals({
-      weeklySessionTarget: userResponses.goals.includes('consistency') ? 7 : 5,
-      targetNeuralScore: userResponses.goals.includes('mastery') ? 95 : 80
-    });
-
-    dispatch({ type: 'MARK_ONBOARDED' });
-    navigation.replace('HomeScreen');
+    completeOnboarding();
   };
 
-  function WelcomeStep() {
+  const completeOnboarding = async () => {
+    try {
+      // Update user profile with onboarding data
+      const updatedProfile = {
+        name: safeGet(userProfile, 'name', 'Neural Optimizer'),
+        preferences: {
+          ...safeGet(userProfile, 'preferences', {}),
+          difficulty: userGoals.experienceLevel,
+          preferredPillars: userGoals.primaryFocus,
+          reminderTime: '09:00',
+          notifications: true,
+          culturalContent: userGoals.culturalInterest,
+          ayurvedicFocus: userGoals.ayurvedicFocus,
+          onboardingCompleted: true,
+          dailyTimeCommitment: userGoals.timeCommitment
+        }
+      };
+
+      // Update session data with weekly goal
+      actions.updateUserProfile(updatedProfile);
+      actions.updateSessionData({ 
+        weeklyGoal: userGoals.weeklyGoal,
+        dailyGoal: Math.ceil(userGoals.weeklyGoal / 7)
+      });
+
+      // Add welcome achievement
+      actions.addAchievement({
+        id: `achievement_welcome_${Date.now()}`,
+        title: 'Welcome to 5PillarsOfLife!',
+        description: 'Started your neural optimization journey',
+        pillar: 'overall',
+        unlockedDate: new Date().toISOString(),
+        rarity: 'common'
+      });
+
+      // Navigate to home with a first-time user experience
+      safeNavigate(navigation, 'Home', { firstTime: true });
+      
+    } catch (error) {
+      console.error('Error completing onboarding:', error);
+      safeNavigate(navigation, 'Home');
+    }
+  };
+
+  const updateGoals = (key: keyof UserGoals, value: any) => {
+    setUserGoals(prev => ({ ...prev, [key]: value }));
+  };
+
+  const togglePillarFocus = (pillar: string) => {
+    setUserGoals(prev => ({
+      ...prev,
+      primaryFocus: prev.primaryFocus.includes(pillar)
+        ? prev.primaryFocus.filter(p => p !== pillar)
+        : [...prev.primaryFocus, pillar]
+    }));
+  };
+
+  const renderStep = () => {
+    const step = onboardingSteps[currentStep];
+    
+    if (step.id === 'goals') {
+      return renderGoalsStep();
+    }
+
     return (
-      <View style={styles.stepContainer}>
-        <LinearGradient
-          colors={[Colors.primary, Colors.secondary]}
-          style={styles.heroGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Animated.View style={[styles.logoContainer, { transform: [{ scale: fadeAnim }] }]}>
-            <Ionicons name="brain" size={80} color="#FFFFFF" />
-          </Animated.View>
+      <Animated.View style={[styles.stepContainer, { transform: [{ translateX: slideAnim }] }]}>
+        <View style={styles.stepContent}>
+          <View style={[styles.iconContainer, { backgroundColor: step.color }]}>
+            <Ionicons name={step.icon as any} size={48} color="#FFFFFF" />
+          </View>
           
-          <Text style={styles.heroTitle}>5 Pillars of Life</Text>
-          <Text style={styles.heroSubtitle}>Neural Optimization Platform</Text>
+          <Text style={styles.stepTitle}>{step.title}</Text>
+          <Text style={styles.stepSubtitle}>{step.subtitle}</Text>
+          <Text style={styles.stepDescription}>{step.description}</Text>
           
-          <Text style={styles.heroDescription}>
-            Unlock your brain's potential through scientifically-backed neural optimization. 
-            Transform your mind, body, heart, spirit, and diet into pillars of excellence.
-          </Text>
-        </LinearGradient>
-
-        <View style={styles.welcomeFeatures}>
-          <FeatureItem 
-            icon="analytics" 
-            title="AI-Powered Insights" 
-            description="Personalized recommendations based on your neural patterns"
-          />
-          <FeatureItem 
-            icon="trending-up" 
-            title="Progress Tracking" 
-            description="Beautiful analytics showing your optimization journey"
-          />
-          <FeatureItem 
-            icon="target" 
-            title="Goal Achievement" 
-            description="Set and achieve meaningful neural development milestones"
-          />
-        </View>
-      </View>
-    );
-  }
-
-  function ScienceStep() {
-    return (
-      <ScrollView style={styles.stepContainer} showsVerticalScrollIndicator={false}>
-        <Text style={styles.stepTitle}>The Science of Neuroplasticity</Text>
-        
-        <View style={styles.scienceCard}>
-          <Ionicons name="bulb" size={32} color={Colors.accent} />
-          <Text style={styles.scienceTitle}>Your Brain Can Change</Text>
-          <Text style={styles.scienceText}>
-            Neuroplasticity is your brain's ability to reorganize and form new neural connections. 
-            This means you can literally rewire your brain for better performance, happiness, and health.
-          </Text>
-        </View>
-
-        <View style={styles.scienceCard}>
-          <Ionicons name="fitness" size={32} color={Colors.body} />
-          <Text style={styles.scienceTitle}>Exercise = Brain Growth</Text>
-          <Text style={styles.scienceText}>
-            Physical exercise increases BDNF (Brain-Derived Neurotrophic Factor) by up to 300%, 
-            promoting the growth of new neurons and strengthening existing connections.
-          </Text>
-        </View>
-
-        <View style={styles.scienceCard}>
-          <Ionicons name="leaf" size={32} color={Colors.spirit} />
-          <Text style={styles.scienceTitle}>Meditation Reshapes Your Brain</Text>
-          <Text style={styles.scienceText}>
-            Regular meditation increases cortical thickness, improves attention, and reduces 
-            activity in the default mode network by 30%.
-          </Text>
-        </View>
-
-        <View style={styles.neuralFactBox}>
-          <Text style={styles.factTitle}>🧠 Neural Fact</Text>
-          <Text style={styles.factText}>
-            Your brain generates approximately 700-1000 new neurons every day in the hippocampus, 
-            the region responsible for learning and memory.
-          </Text>
-        </View>
-      </ScrollView>
-    );
-  }
-
-  function PillarsStep() {
-    const pillars = [
-      { name: 'BODY', icon: 'fitness', color: Colors.body, description: 'Physical optimization for neural growth' },
-      { name: 'MIND', icon: 'library', color: Colors.mind, description: 'Cognitive enhancement and focus training' },
-      { name: 'HEART', icon: 'heart', color: Colors.heart, description: 'Emotional intelligence and coherence' },
-      { name: 'SPIRIT', icon: 'leaf', color: Colors.spirit, description: 'Consciousness expansion and awareness' },
-      { name: 'DIET', icon: 'restaurant', color: Colors.diet, description: 'Nutritional fuel for your brain' }
-    ];
-
-    return (
-      <ScrollView style={styles.stepContainer} showsVerticalScrollIndicator={false}>
-        <Text style={styles.stepTitle}>The 5 Pillars of Neural Excellence</Text>
-        <Text style={styles.stepSubtitle}>
-          Each pillar represents a fundamental aspect of neural optimization. 
-          Together, they create a comprehensive system for brain enhancement.
-        </Text>
-
-        {pillars.map((pillar, index) => (
-          <Animated.View 
-            key={pillar.name}
-            style={[
-              styles.pillarCard,
-              { 
-                transform: [{ translateY: slideAnim }],
-                opacity: fadeAnim
-              }
-            ]}
-          >
-            <View style={[styles.pillarIcon, { backgroundColor: `${pillar.color}15` }]}>
-              <Ionicons name={pillar.icon as any} size={32} color={pillar.color} />
+          {step.culturalWisdom && (
+            <View style={styles.wisdomContainer}>
+              <Ionicons name="book" size={16} color={Colors.spirit} />
+              <Text style={styles.wisdomText}>{step.culturalWisdom}</Text>
             </View>
-            <View style={styles.pillarContent}>
-              <Text style={styles.pillarName}>{pillar.name}</Text>
-              <Text style={styles.pillarDescription}>{pillar.description}</Text>
-            </View>
-          </Animated.View>
-        ))}
-
-        <View style={styles.synergyBox}>
-          <Text style={styles.synergyTitle}>🔗 Synergistic Effect</Text>
-          <Text style={styles.synergyText}>
-            The magic happens when all 5 pillars work together. Our AI identifies 
-            correlations between pillars and creates personalized optimization pathways.
-          </Text>
-        </View>
-      </ScrollView>
-    );
-  }
-
-  function PersonalizationStep() {
-    return (
-      <View style={styles.stepContainer}>
-        <Text style={styles.stepTitle}>Tell Us About Yourself</Text>
-        <Text style={styles.stepSubtitle}>
-          This helps us personalize your neural optimization journey
-        </Text>
-
-        <View style={styles.formContainer}>
-          <Text style={styles.formLabel}>What's your name?</Text>
-          <TouchableOpacity style={styles.inputField}>
-            <Text style={styles.inputText}>
-              {userResponses.name || 'Tap to enter your name'}
-            </Text>
-          </TouchableOpacity>
-
-          <Text style={styles.formLabel}>Experience with neural optimization?</Text>
-          {['Complete Beginner', 'Some Experience', 'Advanced'].map(option => (
-            <TouchableOpacity
-              key={option}
-              style={[
-                styles.optionButton,
-                userResponses.experience === option && styles.selectedOption
-              ]}
-              onPress={() => setUserResponses(prev => ({ ...prev, experience: option }))}
-            >
-              <Text style={[
-                styles.optionText,
-                userResponses.experience === option && styles.selectedOptionText
-              ]}>
-                {option}
-              </Text>
-            </TouchableOpacity>
-          ))}
-
-          <Text style={styles.formLabel}>Preferred session time?</Text>
-          {['Morning (6-9 AM)', 'Afternoon (12-3 PM)', 'Evening (6-9 PM)'].map(option => (
-            <TouchableOpacity
-              key={option}
-              style={[
-                styles.optionButton,
-                userResponses.preferredTime === option && styles.selectedOption
-              ]}
-              onPress={() => setUserResponses(prev => ({ ...prev, preferredTime: option }))}
-            >
-              <Text style={[
-                styles.optionText,
-                userResponses.preferredTime === option && styles.selectedOptionText
-              ]}>
-                {option}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-    );
-  }
-
-  function GoalsStep() {
-    const goalOptions = [
-      { id: 'focus', title: 'Improve Focus', description: 'Enhance concentration and attention' },
-      { id: 'stress', title: 'Reduce Stress', description: 'Better emotional regulation and calm' },
-      { id: 'energy', title: 'Increase Energy', description: 'More vitality and mental clarity' },
-      { id: 'creativity', title: 'Boost Creativity', description: 'Enhanced innovative thinking' },
-      { id: 'memory', title: 'Better Memory', description: 'Improved retention and recall' },
-      { id: 'consistency', title: 'Build Consistency', description: 'Develop daily optimization habits' }
-    ];
-
-    return (
-      <ScrollView style={styles.stepContainer} showsVerticalScrollIndicator={false}>
-        <Text style={styles.stepTitle}>What Are Your Goals?</Text>
-        <Text style={styles.stepSubtitle}>
-          Select all that apply. We'll customize your experience to match your objectives.
-        </Text>
-
-        {goalOptions.map(goal => (
-          <TouchableOpacity
-            key={goal.id}
-            style={[
-              styles.goalCard,
-              userResponses.goals.includes(goal.id) && styles.selectedGoal
-            ]}
-            onPress={() => {
-              setUserResponses(prev => ({
-                ...prev,
-                goals: prev.goals.includes(goal.id)
-                  ? prev.goals.filter(g => g !== goal.id)
-                  : [...prev.goals, goal.id]
-              }));
-            }}
-          >
-            <View style={styles.goalContent}>
-              <Text style={[
-                styles.goalTitle,
-                userResponses.goals.includes(goal.id) && styles.selectedGoalTitle
-              ]}>
-                {goal.title}
-              </Text>
-              <Text style={styles.goalDescription}>{goal.description}</Text>
-            </View>
-            {userResponses.goals.includes(goal.id) && (
-              <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
-            )}
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-    );
-  }
-
-  function ReadyStep() {
-    return (
-      <View style={styles.stepContainer}>
-        <LinearGradient
-          colors={[Colors.success, Colors.accent]}
-          style={styles.readyGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Animated.View style={{ transform: [{ scale: fadeAnim }] }}>
-            <Ionicons name="rocket" size={64} color="#FFFFFF" />
-          </Animated.View>
-          
-          <Text style={styles.readyTitle}>You're All Set!</Text>
-          <Text style={styles.readySubtitle}>
-            Your personalized neural optimization journey is ready to begin
-          </Text>
-        </LinearGradient>
-
-        <View style={styles.summaryContainer}>
-          <Text style={styles.summaryTitle}>Your Profile Summary:</Text>
-          
-          <View style={styles.summaryItem}>
-            <Ionicons name="person" size={20} color={Colors.primary} />
-            <Text style={styles.summaryText}>
-              {userResponses.name || 'Neural Explorer'} • {userResponses.experience || 'Beginner'}
-            </Text>
-          </View>
-          
-          <View style={styles.summaryItem}>
-            <Ionicons name="time" size={20} color={Colors.primary} />
-            <Text style={styles.summaryText}>
-              Preferred time: {userResponses.preferredTime || 'Morning'}
-            </Text>
-          </View>
-          
-          <View style={styles.summaryItem}>
-            <Ionicons name="target" size={20} color={Colors.primary} />
-            <Text style={styles.summaryText}>
-              {userResponses.goals.length} goals selected for optimization
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.nextStepsContainer}>
-          <Text style={styles.nextStepsTitle}>What's Next:</Text>
-          <Text style={styles.nextStepsText}>
-            • AI will analyze your preferences{'\n'}
-            • Personalized pillar recommendations{'\n'}
-            • Smart session scheduling{'\n'}
-            • Progress tracking begins immediately
-          </Text>
-        </View>
-      </View>
-    );
-  }
-
-  function FeatureItem({ icon, title, description }) {
-    return (
-      <View style={styles.featureItem}>
-        <View style={styles.featureIcon}>
-          <Ionicons name={icon} size={24} color={Colors.primary} />
-        </View>
-        <View style={styles.featureContent}>
-          <Text style={styles.featureTitle}>{title}</Text>
-          <Text style={styles.featureDescription}>{description}</Text>
-        </View>
-      </View>
-    );
-  }
-
-  const CurrentStepComponent = onboardingSteps[currentStep].component;
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <Animated.View style={{ opacity: fadeAnim, flex: 1 }}>
-        {/* Progress Indicator */}
-        <View style={styles.progressContainer}>
-          <View style={styles.progressBar}>
-            <Animated.View 
-              style={[
-                styles.progressFill, 
-                { width: `${((currentStep + 1) / onboardingSteps.length) * 100}%` }
-              ]} 
-            />
-          </View>
-          <Text style={styles.progressText}>
-            {currentStep + 1} of {onboardingSteps.length}
-          </Text>
-        </View>
-
-        {/* Step Content */}
-        <Animated.View 
-          style={[
-            styles.contentContainer,
-            { 
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }]
-            }
-          ]}
-        >
-          <CurrentStepComponent />
-        </Animated.View>
-
-        {/* Navigation */}
-        <View style={styles.navigationContainer}>
-          {currentStep > 0 && (
-            <TouchableOpacity style={styles.backButton} onPress={prevStep}>
-              <Ionicons name="arrow-back" size={20} color={Colors.textSecondary} />
-              <Text style={styles.backButtonText}>Back</Text>
-            </TouchableOpacity>
           )}
           
-          <TouchableOpacity style={styles.nextButton} onPress={nextStep}>
-            <Text style={styles.nextButtonText}>
-              {currentStep === onboardingSteps.length - 1 ? 'Begin Journey' : 'Continue'}
-            </Text>
-            <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
+          {step.sanskritTerm && (
+            <View style={styles.sanskritContainer}>
+              <Text style={styles.sanskritLabel}>Sanskrit:</Text>
+              <Text style={styles.sanskritTerm}>{step.sanskritTerm}</Text>
+            </View>
+          )}
         </View>
       </Animated.View>
-    </SafeAreaView>
+    );
+  };
+
+  const renderGoalsStep = () => (
+    <Animated.View style={[styles.stepContainer, { transform: [{ translateX: slideAnim }] }]}>
+      <ScrollView style={styles.goalsScrollView} contentContainerStyle={styles.goalsContent}>
+        <Text style={styles.goalsTitle}>Personalize Your Journey</Text>
+        <Text style={styles.goalsSubtitle}>Help us create the perfect experience for you</Text>
+
+        {/* Primary Focus Selection */}
+        <View style={styles.goalSection}>
+          <Text style={styles.goalSectionTitle}>Which pillars interest you most?</Text>
+          <Text style={styles.goalSectionSubtitle}>Select 1-3 areas to focus on initially</Text>
+          
+          <View style={styles.pillarGrid}>
+            {[
+              { key: 'body', label: 'Body', icon: 'fitness', color: Colors.body },
+              { key: 'mind', label: 'Mind', icon: 'library', color: Colors.mind },
+              { key: 'heart', label: 'Heart', icon: 'heart', color: Colors.heart },
+              { key: 'spirit', label: 'Spirit', icon: 'leaf', color: Colors.spirit },
+              { key: 'diet', label: 'Diet', icon: 'restaurant', color: Colors.diet }
+            ].map(pillar => (
+              <TouchableOpacity
+                key={pillar.key}
+                style={[
+                  styles.pillarOption,
+                  userGoals.primaryFocus.includes(pillar.key) && styles.pillarOptionSelected,
+                  { borderColor: pillar.color }
+                ]}
+                onPress={() => togglePillarFocus(pillar.key)}
+              >
+                <Ionicons 
+                  name={pillar.icon as any} 
+                  size={24} 
+                  color={userGoals.primaryFocus.includes(pillar.key) ? '#FFFFFF' : pillar.color} 
+                />
+                <Text style={[
+                  styles.pillarOptionText,
+                  userGoals.primaryFocus.includes(pillar.key) && styles.pillarOptionTextSelected
+                ]}>
+                  {pillar.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Experience Level */}
+        <View style={styles.goalSection}>
+          <Text style={styles.goalSectionTitle}>What's your wellness experience?</Text>
+          
+          <View style={styles.experienceOptions}>
+            {[
+              { value: 'beginner', label: 'Beginner', description: 'New to wellness practices' },
+              { value: 'intermediate', label: 'Intermediate', description: 'Some experience with meditation/fitness' },
+              { value: 'advanced', label: 'Advanced', description: 'Regular wellness practitioner' }
+            ].map(option => (
+              <TouchableOpacity
+                key={option.value}
+                style={[
+                  styles.experienceOption,
+                  userGoals.experienceLevel === option.value && styles.experienceOptionSelected
+                ]}
+                onPress={() => updateGoals('experienceLevel', option.value)}
+              >
+                <Text style={[
+                  styles.experienceOptionLabel,
+                  userGoals.experienceLevel === option.value && styles.experienceOptionLabelSelected
+                ]}>
+                  {option.label}
+                </Text>
+                <Text style={[
+                  styles.experienceOptionDesc,
+                  userGoals.experienceLevel === option.value && styles.experienceOptionDescSelected
+                ]}>
+                  {option.description}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Time Commitment */}
+        <View style={styles.goalSection}>
+          <Text style={styles.goalSectionTitle}>Daily time commitment</Text>
+          <Text style={styles.goalSectionSubtitle}>How many minutes per day can you dedicate?</Text>
+          
+          <View style={styles.timeOptions}>
+            {[10, 15, 20, 30, 45].map(minutes => (
+              <TouchableOpacity
+                key={minutes}
+                style={[
+                  styles.timeOption,
+                  userGoals.timeCommitment === minutes && styles.timeOptionSelected
+                ]}
+                onPress={() => updateGoals('timeCommitment', minutes)}
+              >
+                <Text style={[
+                  styles.timeOptionText,
+                  userGoals.timeCommitment === minutes && styles.timeOptionTextSelected
+                ]}>
+                  {minutes}m
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Cultural Interest */}
+        <View style={styles.goalSection}>
+          <Text style={styles.goalSectionTitle}>Cultural Preferences</Text>
+          
+          <TouchableOpacity
+            style={styles.culturalOption}
+            onPress={() => updateGoals('culturalInterest', !userGoals.culturalInterest)}
+          >
+            <View style={styles.culturalOptionContent}>
+              <Text style={styles.culturalOptionTitle}>Include Indian Cultural Wisdom</Text>
+              <Text style={styles.culturalOptionDesc}>
+                Sanskrit terms, Vedic quotes, and traditional practices
+              </Text>
+            </View>
+            <View style={[
+              styles.culturalToggle,
+              userGoals.culturalInterest && styles.culturalToggleActive
+            ]}>
+              {userGoals.culturalInterest && (
+                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+              )}
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.culturalOption}
+            onPress={() => updateGoals('ayurvedicFocus', !userGoals.ayurvedicFocus)}
+          >
+            <View style={styles.culturalOptionContent}>
+              <Text style={styles.culturalOptionTitle}>Ayurvedic Nutrition Focus</Text>
+              <Text style={styles.culturalOptionDesc}>
+                Dosha balancing, seasonal eating, and traditional remedies
+              </Text>
+            </View>
+            <View style={[
+              styles.culturalToggle,
+              userGoals.ayurvedicFocus && styles.culturalToggleActive
+            ]}>
+              {userGoals.ayurvedicFocus && (
+                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+              )}
+            </View>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </Animated.View>
+  );
+
+  const renderProgressBar = () => (
+    <View style={styles.progressContainer}>
+      <View style={styles.progressBar}>
+        <Animated.View 
+          style={[
+            styles.progressFill,
+            {
+              width: progressAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: ['0%', '100%'],
+              })
+            }
+          ]}
+        />
+      </View>
+      <Text style={styles.progressText}>
+        {currentStep + 1} of {onboardingSteps.length}
+      </Text>
+    </View>
+  );
+
+  const renderNavigation = () => (
+    <View style={styles.navigationContainer}>
+      <TouchableOpacity
+        style={[styles.navButton, styles.skipButton]}
+        onPress={handleSkip}
+      >
+        <Text style={styles.skipButtonText}>Skip</Text>
+      </TouchableOpacity>
+
+      <View style={styles.navControls}>
+        {currentStep > 0 && (
+          <TouchableOpacity
+            style={[styles.navButton, styles.backButton]}
+            onPress={handleBack}
+          >
+            <Ionicons name="chevron-back" size={20} color={Colors.textSecondary} />
+            <Text style={styles.backButtonText}>Back</Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity
+          style={[styles.navButton, styles.nextButton]}
+          onPress={handleNext}
+        >
+          <Text style={styles.nextButtonText}>
+            {currentStep === onboardingSteps.length - 1 ? 'Start Journey!' : 'Next'}
+          </Text>
+          <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  if (!isInitialized) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Ionicons name="sparkles" size={48} color={Colors.spirit} />
+        <Text style={styles.loadingText}>Preparing Your Journey...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <PerformanceMonitor>
+      <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+        <LinearGradient
+          colors={[Colors.background, '#FFFFFF']}
+          style={styles.backgroundGradient}
+        >
+          {renderProgressBar()}
+          
+          <View style={styles.contentContainer}>
+            {renderStep()}
+          </View>
+          
+          {renderNavigation()}
+        </LinearGradient>
+      </Animated.View>
+    </PerformanceMonitor>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    paddingTop: Platform.OS === 'android' ? 25 : 0,
+  },
+  backgroundGradient: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: Colors.background,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: Colors.textSecondary,
   },
   progressContainer: {
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 20 : 40,
-    paddingBottom: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
   },
   progressBar: {
     height: 4,
-    backgroundColor: Colors.textSecondary + '20',
+    backgroundColor: '#E5E7EB',
     borderRadius: 2,
+    overflow: 'hidden',
     marginBottom: 8,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.spirit,
     borderRadius: 2,
   },
   progressText: {
-    fontSize: 14,
+    fontSize: 12,
     color: Colors.textSecondary,
     textAlign: 'center',
-    fontWeight: '500',
   },
   contentContainer: {
     flex: 1,
+    justifyContent: 'center',
   },
   stepContainer: {
     flex: 1,
     paddingHorizontal: 20,
+    justifyContent: 'center',
   },
-  heroGradient: {
-    borderRadius: 20,
-    padding: 32,
+  stepContent: {
     alignItems: 'center',
-    marginBottom: 32,
   },
-  logoContainer: {
-    marginBottom: 20,
-  },
-  heroTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 8,
-    textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'sans-serif',
-  },
-  heroSubtitle: {
-    fontSize: 18,
-    color: 'rgba(255,255,255,0.9)',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  heroDescription: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.8)',
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  welcomeFeatures: {
-    gap: 16,
-  },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  featureIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.primary + '15',
+  iconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
-  },
-  featureContent: {
-    flex: 1,
-  },
-  featureTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: Colors.text,
-    marginBottom: 4,
-  },
-  featureDescription: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    lineHeight: 20,
+    marginBottom: 32,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 12,
   },
   stepTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
     color: Colors.text,
+    textAlign: 'center',
     marginBottom: 8,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'sans-serif',
   },
   stepSubtitle: {
     fontSize: 16,
+    color: Colors.spirit,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginBottom: 16,
+  },
+  stepDescription: {
+    fontSize: 16,
     color: Colors.textSecondary,
+    textAlign: 'center',
     lineHeight: 24,
     marginBottom: 24,
+    paddingHorizontal: 16,
   },
-  scienceCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  scienceTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Colors.text,
-    marginTop: 12,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  scienceText: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  neuralFactBox: {
-    backgroundColor: Colors.primary + '10',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.primary,
-  },
-  factTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: Colors.primary,
-    marginBottom: 8,
-  },
-  factText: {
-    fontSize: 14,
-    color: Colors.text,
-    lineHeight: 20,
-  },
-  pillarCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+  wisdomContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    backgroundColor: `${Colors.spirit}15`,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    maxWidth: '90%',
   },
-  pillarIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: 'center',
+  wisdomText: {
+    fontSize: 14,
+    color: Colors.text,
+    fontStyle: 'italic',
+    marginLeft: 8,
+    lineHeight: 20,
+  },
+  sanskritContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 16,
+    backgroundColor: `${Colors.warning}15`,
+    padding: 12,
+    borderRadius: 8,
   },
-  pillarContent: {
-    flex: 1,
-  },
-  pillarName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.text,
-    marginBottom: 4,
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'sans-serif',
-  },
-  pillarDescription: {
-    fontSize: 14,
+  sanskritLabel: {
+    fontSize: 12,
     color: Colors.textSecondary,
-    lineHeight: 20,
+    marginRight: 8,
   },
-  synergyBox: {
-    backgroundColor: Colors.success + '10',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.success,
-  },
-  synergyTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: Colors.success,
-    marginBottom: 8,
-  },
-  synergyText: {
+  sanskritTerm: {
     fontSize: 14,
-    color: Colors.text,
-    lineHeight: 20,
-  },
-  formContainer: {
-    gap: 20,
-  },
-  formLabel: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: Colors.text,
-    marginBottom: 8,
-  },
-  inputField: {
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.textSecondary + '20',
-  },
-  inputText: {
-    fontSize: 16,
-    color: Colors.text,
-  },
-  optionButton: {
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: Colors.textSecondary + '20',
-  },
-  selectedOption: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primary + '10',
-  },
-  optionText: {
-    fontSize: 16,
-    color: Colors.text,
-  },
-  selectedOptionText: {
-    color: Colors.primary,
+    color: Colors.warning,
     fontWeight: '600',
   },
-  goalCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.textSecondary + '20',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  selectedGoal: {
-    borderColor: Colors.success,
-    backgroundColor: Colors.success + '10',
-  },
-  goalContent: {
+  goalsScrollView: {
     flex: 1,
   },
-  goalTitle: {
-    fontSize: 16,
+  goalsContent: {
+    paddingVertical: 20,
+  },
+  goalsTitle: {
+    fontSize: 24,
     fontWeight: 'bold',
+    color: Colors.text,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  goalsSubtitle: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 32,
+  },
+  goalSection: {
+    marginBottom: 32,
+  },
+  goalSectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: 8,
+  },
+  goalSectionSubtitle: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginBottom: 16,
+  },
+  pillarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  pillarOption: {
+    width: '47%',
+    borderWidth: 2,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+  },
+  pillarOptionSelected: {
+    backgroundColor: Colors.accent,
+  },
+  pillarOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+    marginTop: 8,
+  },
+  pillarOptionTextSelected: {
+    color: '#FFFFFF',
+  },
+  experienceOptions: {
+    gap: 12,
+  },
+  experienceOption: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 16,
+    backgroundColor: Colors.surface,
+  },
+  experienceOptionSelected: {
+    borderColor: Colors.accent,
+    backgroundColor: `${Colors.accent}15`,
+  },
+  experienceOptionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
     color: Colors.text,
     marginBottom: 4,
   },
-  selectedGoalTitle: {
-    color: Colors.success,
+  experienceOptionLabelSelected: {
+    color: Colors.accent,
   },
-  goalDescription: {
+  experienceOptionDesc: {
     fontSize: 14,
     color: Colors.textSecondary,
   },
-  readyGradient: {
+  experienceOptionDescSelected: {
+    color: Colors.accent,
+  },
+  timeOptions: {
+    flexDirection: 'row',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  timeOption: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     borderRadius: 20,
-    padding: 32,
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  readyTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginTop: 16,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  readySubtitle: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.9)',
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  summaryContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
   },
-  summaryTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  timeOptionSelected: {
+    borderColor: Colors.accent,
+    backgroundColor: Colors.accent,
+  },
+  timeOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
     color: Colors.text,
-    marginBottom: 16,
   },
-  summaryItem: {
+  timeOptionTextSelected: {
+    color: '#FFFFFF',
+  },
+  culturalOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-    gap: 12,
-  },
-  summaryText: {
-    fontSize: 16,
-    color: Colors.text,
-  },
-  nextStepsContainer: {
-    backgroundColor: Colors.primary + '10',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     borderRadius: 12,
     padding: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.primary,
-  },
-  nextStepsTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: Colors.primary,
+    backgroundColor: Colors.surface,
     marginBottom: 12,
   },
-  nextStepsText: {
-    fontSize: 14,
+  culturalOptionContent: {
+    flex: 1,
+  },
+  culturalOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
     color: Colors.text,
-    lineHeight: 20,
+    marginBottom: 4,
+  },
+  culturalOptionDesc: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+  },
+  culturalToggle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  culturalToggleActive: {
+    backgroundColor: Colors.success,
+    borderColor: Colors.success,
   },
   navigationContainer: {
     flexDirection: 'row',
@@ -861,34 +841,43 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     backgroundColor: Colors.surface,
     borderTopWidth: 1,
-    borderTopColor: Colors.background,
+    borderTopColor: '#E5E7EB',
   },
-  backButton: {
+  navButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    gap: 8,
+    borderRadius: 8,
+  },
+  skipButton: {
+    backgroundColor: 'transparent',
+  },
+  skipButtonText: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+  },
+  navControls: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  backButton: {
+    backgroundColor: '#F3F4F6',
   },
   backButtonText: {
     fontSize: 16,
     color: Colors.textSecondary,
-    fontWeight: '500',
+    marginLeft: 4,
   },
   nextButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    gap: 8,
+    backgroundColor: Colors.spirit,
   },
   nextButtonText: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: '#FFFFFF',
+    marginRight: 4,
   },
 });
 
-export default OnboardingScreen;
+export default React.memo(OnboardingScreen);

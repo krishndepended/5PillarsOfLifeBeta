@@ -1,3 +1,4 @@
+// app.json - UPDATED WITH STORE-READY ASSETS
 {
   "expo": {
     "name": "5 Pillars of Life",
@@ -5,34 +6,71 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#3B82F6"
+      "backgroundColor": "#8B5CF6"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.neuraloptimization.fivepillarsoflife",
+      "buildNumber": "1",
+      "backgroundModes": ["background-fetch", "background-processing"],
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app uses camera to track yoga poses and fitness form.",
+        "NSMicrophoneUsageDescription": "This app uses microphone for voice-guided meditation sessions.",
+        "NSLocationWhenInUseUsageDescription": "This app uses location to provide location-based wellness recommendations.",
+        "UIBackgroundModes": ["background-fetch", "background-processing"]
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FFFFFF"
+        "backgroundColor": "#8B5CF6"
       },
       "package": "com.neuraloptimization.fivepillarsoflife",
       "versionCode": 1,
       "permissions": [
         "android.permission.INTERNET",
         "android.permission.WAKE_LOCK",
-        "android.permission.VIBRATE"
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION"
       ],
       "amazonAppstore": {
         "supported": true
       }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "name": "5 Pillars of Life - Wellness App",
+      "shortName": "5 Pillars",
+      "description": "Transform your life with ancient wisdom and modern technology"
     },
     "plugins": [
       [
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#3B82F6"
+          "color": "#8B5CF6",
+          "sounds": ["./assets/notification-sound.wav"]
+        }
+      ],
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/Inter-Regular.ttf",
+            "./assets/fonts/Inter-Bold.ttf"
+          ]
         }
       ]
     ],
@@ -40,6 +78,7 @@
       "eas": {
         "projectId": "97680ddd-daf7-49b0-b01f-2d57230a8750"
       }
-    }
+    },
+    "owner": "neuraloptimization"
   }
 }

@@ -1,189 +1,154 @@
-// App.tsx - COMPLETE VERSION WITH AI INSIGHT DETAIL SCREEN ROUTE
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+// App.tsx - UPDATED WITH DARK MODE THEME PROVIDER
+import React, { useEffect } from 'react';
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { View, Text, StyleSheet, Platform, ActivityIndicator } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { AppDataProvider } from './src/context/AppDataContext';
-import NotificationManager from './src/utils/NotificationManager';
+import { StatusBar } from 'expo-status-bar';
+import { Platform, Alert } from 'react-native';
 
-// Import all screens
+// Context Providers
+import { AppDataProvider } from './src/context/AppDataContext';
+import { ThemeProvider, useTheme } from './src/context/ThemeContext';
+
+// Error Boundary
+import ErrorBoundary from './src/components/ErrorBoundary';
+
+// Advanced Services
+import IntelligentNotificationService from './src/services/NotificationService';
+import SocialService from './src/services/SocialService';
+import OfflineService from './src/services/OfflineService';
+
+// Screens (all your existing screens)
 import HomeScreen from './src/screens/HomeScreen';
+import OnboardingScreen from './src/screens/OnboardingScreen';
 import BodyScreen from './src/screens/BodyScreen';
 import MindScreen from './src/screens/MindScreen';
 import HeartScreen from './src/screens/HeartScreen';
 import SpiritScreen from './src/screens/SpiritScreen';
 import DietScreen from './src/screens/DietScreen';
-import AnalyticsScreen from './src/screens/AnalyticsScreen';
 import UserProfileScreen from './src/screens/UserProfileScreen';
-import NotificationSettingsScreen from './src/screens/NotificationSettingsScreen';
+import QuickSessionScreen from './src/screens/QuickSessionScreen';
+import DailyCheckInScreen from './src/screens/DailyCheckInScreen';
 import AICoachScreen from './src/screens/AICoachScreen';
-import AIInsightDetailScreen from './src/screens/AIInsightDetailScreen'; // NEW AI INSIGHT DETAIL SCREEN
+import AdvancedAnalyticsScreen from './src/screens/AdvancedAnalyticsScreen';
+import AIInsightDetailScreen from './src/screens/AIInsightDetailScreen';
+import CommunityScreen from './src/screens/CommunityScreen';
 
 const Stack = createNativeStackNavigator();
 
-// Enhanced app initializer with notifications
-const AppInitializer = ({ children }: { children: React.ReactNode }) => {
-  const [isReady, setIsReady] = React.useState(false);
+const AppNavigator = () => {
+  const { theme } = useTheme();
 
-  React.useEffect(() => {
-    initializeApp();
-  }, []);
-
-  const initializeApp = async () => {
-    try {
-      // Initialize notification system
-      const notificationManager = NotificationManager.getInstance();
-      await notificationManager.initialize();
-      
-      // Set up default daily reminder
-      await notificationManager.scheduleDailyReminder('09:00', true);
-      
-      // Schedule motivational reminder
-      await notificationManager.scheduleMotivationalReminder();
-      
-      console.log('5PillarsOfLife app fully initialized with notifications, AI Coach, and AI Insight Details!');
-    } catch (error) {
-      console.error('Error initializing app:', error);
-    } finally {
-      setTimeout(() => setIsReady(true), 1000);
-    }
+  // Custom navigation theme
+  const navigationTheme = {
+    ...DefaultTheme,
+    dark: theme.isDark,
+    colors: {
+      ...DefaultTheme.colors,
+      background: theme.colors.background,
+      card: theme.colors.surface,
+      text: theme.colors.text,
+      border: theme.colors.border,
+      primary: theme.colors.accent,
+    },
   };
 
-  if (!isReady) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8B5CF6" />
-        <Text style={styles.loadingText}>Initializing Neural Platform...</Text>
-        <Text style={styles.loadingSubtext}>Setting up AI insights & detailed recommendations</Text>
-      </View>
-    );
-  }
+  useEffect(() => {
+    const initializeAdvancedServices = async () => {
+      try {
+        console.log('🚀 Initializing 5 Pillars of Life Advanced Services...');
+        
+        // Initialize services
+        const notificationService = IntelligentNotificationService.getInstance();
+        const notificationInit = await notificationService.initialize();
+        
+        if (notificationInit) {
+          console.log('🔔 Notification Service initialized successfully');
+          await notificationService.scheduleMotivationalMessage();
+        } else {
+          console.warn('⚠️ Notification permissions not granted');
+        }
+        
+        const offlineService = OfflineService.getInstance();
+        await offlineService.initialize();
+        console.log('📱 Offline Service initialized successfully');
+        
+        const socialService = SocialService.getInstance();
+        console.log('👥 Social Service ready');
+        
+        console.log('✅ All Advanced Services initialized successfully!');
+        console.log('🕉️ Welcome to 5 Pillars of Life - Production Ready!');
+        
+      } catch (error) {
+        console.error('❌ Error initializing advanced services:', error);
+        
+        if (__DEV__) {
+          Alert.alert(
+            'Service Initialization',
+            'Some advanced features may not be available. The app will still work normally.',
+            [{ text: 'Continue', style: 'default' }]
+          );
+        }
+      }
+    };
 
-  return <>{children}</>;
-};
+    initializeAdvancedServices();
+  }, []);
 
-// Enhanced navigation error boundary
-class NavigationErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean; error: Error | null }
-> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Navigation Error:', error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorTitle}>Neural Navigation Offline</Text>
-          <Text style={styles.errorMessage}>
-            System temporarily unavailable. Restarting optimization protocols...
-          </Text>
-          <Text 
-            style={styles.retryButton}
-            onPress={() => this.setState({ hasError: false, error: null })}
-          >
-            Restart Neural Platform
-          </Text>
-        </View>
-      );
-    }
-
-    return <>{this.props.children}</>;
-  }
-}
-
-// Complete navigator with all features INCLUDING AI COACH AND AI INSIGHT DETAIL
-const SafeNavigator = () => {
   return (
-    <NavigationContainer
-      onUnhandledAction={(action) => {
-        console.warn('Unhandled navigation action:', action);
-      }}
-      onStateChange={(state) => {
-        console.log('Neural navigation state changed');
-      }}
-    >
+    <NavigationContainer theme={navigationTheme}>
+      <StatusBar style={theme.isDark ? "light" : "dark"} />
       <Stack.Navigator
         initialRouteName="Home"
         screenOptions={{
           headerShown: false,
-          animation: 'slide_from_right',
           gestureEnabled: true,
-          gestureDirection: 'horizontal',
+          animation: 'slide_from_right',
         }}
       >
+        {/* Core Screens */}
+        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="OnboardingScreen" component={OnboardingScreen} />
+        
+        {/* Pillar Screens */}
+        <Stack.Screen name="BodyScreen" component={BodyScreen} />
+        <Stack.Screen name="MindScreen" component={MindScreen} />
+        <Stack.Screen name="HeartScreen" component={HeartScreen} />
+        <Stack.Screen name="SpiritScreen" component={SpiritScreen} />
+        <Stack.Screen name="DietScreen" component={DietScreen} />
+        
+        {/* Feature Screens */}
+        <Stack.Screen name="UserProfileScreen">
+          {() => (
+            <ErrorBoundary>
+              <UserProfileScreen />
+            </ErrorBoundary>
+          )}
+        </Stack.Screen>
+        
+        {/* Community & Social Features */}
         <Stack.Screen 
-          name="Home" 
-          component={HomeScreen}
-          options={{ title: '5 Pillars of Life' }}
-        />
-        <Stack.Screen 
-          name="BodyScreen" 
-          component={BodyScreen}
-          options={{ title: 'Body Optimization' }}
-        />
-        <Stack.Screen 
-          name="MindScreen" 
-          component={MindScreen}
-          options={{ title: 'Mind Enhancement' }}
-        />
-        <Stack.Screen 
-          name="HeartScreen" 
-          component={HeartScreen}
-          options={{ title: 'Heart Intelligence' }}
-        />
-        <Stack.Screen 
-          name="SpiritScreen" 
-          component={SpiritScreen}
-          options={{ title: 'Spirit Expansion' }}
-        />
-        <Stack.Screen 
-          name="DietScreen" 
-          component={DietScreen}
-          options={{ title: 'Diet Optimization' }}
-        />
-        <Stack.Screen 
-          name="AnalyticsScreen" 
-          component={AnalyticsScreen}
-          options={{ title: 'Neural Analytics' }}
-        />
-        <Stack.Screen 
-          name="UserProfileScreen" 
-          component={UserProfileScreen}
-          options={{ title: 'Neural Profile' }}
-        />
-        <Stack.Screen 
-          name="NotificationSettingsScreen" 
-          component={NotificationSettingsScreen}
-          options={{ title: 'Notification Settings' }}
-        />
-        {/* AI Coach Screen Route */}
-        <Stack.Screen 
-          name="AICoachScreen" 
-          component={AICoachScreen}
-          options={{ title: 'AI Coach' }}
-        />
-        {/* NEW: AI Insight Detail Screen Route */}
-        <Stack.Screen 
-          name="AIInsightDetailScreen" 
-          component={AIInsightDetailScreen}
-          options={{ 
-            title: 'AI Insight Detail',
-            animation: 'slide_from_bottom' // Special animation for detail views
+          name="CommunityScreen" 
+          component={CommunityScreen}
+          options={{
+            animation: 'slide_from_bottom',
           }}
         />
+        
+        {/* Session & Practice Screens */}
+        <Stack.Screen name="QuickSessionScreen" component={QuickSessionScreen} />
+        <Stack.Screen name="DailyCheckInScreen" component={DailyCheckInScreen} />
+        <Stack.Screen name="AICoachScreen" component={AICoachScreen} />
+        
+        {/* Advanced Feature Screens */}
+        <Stack.Screen 
+          name="AdvancedAnalyticsScreen" 
+          component={AdvancedAnalyticsScreen}
+          options={{
+            animation: 'slide_from_bottom',
+          }}
+        />
+        <Stack.Screen name="AIInsightDetailScreen" component={AIInsightDetailScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -191,69 +156,14 @@ const SafeNavigator = () => {
 
 export default function App() {
   return (
-    <AppDataProvider>
-      <NavigationErrorBoundary>
-        <AppInitializer>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <SafeAreaProvider>
-              <SafeNavigator />
-            </SafeAreaProvider>
-          </GestureHandlerRootView>
-        </AppInitializer>
-      </NavigationErrorBoundary>
-    </AppDataProvider>
+    <ErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <ThemeProvider>
+          <AppDataProvider>
+            <AppNavigator />
+          </AppDataProvider>
+        </ThemeProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  loadingSubtext: {
-    marginTop: 8,
-    fontSize: 14,
-    color: '#9CA3AF',
-    textAlign: 'center',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    padding: 20,
-  },
-  errorTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#EF4444',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  errorMessage: {
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 20,
-    lineHeight: 22,
-  },
-  retryButton: {
-    fontSize: 16,
-    color: '#8B5CF6',
-    fontWeight: 'bold',
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#8B5CF6',
-    borderRadius: 8,
-    textAlign: 'center',
-    backgroundColor: '#FFFFFF',
-  },
-});

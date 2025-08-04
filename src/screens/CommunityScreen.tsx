@@ -1,768 +1,537 @@
-// src/screens/CommunityScreen.tsx
-import React, { useState, useEffect } from 'react';
+// src/screens/CommunityScreen.tsx - SOCIAL FEATURES UI
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Dimensions, Platform, Animated, Modal, TextInput, Alert
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  SafeAreaView,
+  Alert,
+  Share,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import GlassPanel from '../components/GlassPanel';
-import { CommunitySystem } from '../services/CommunitySystem';
-import { HapticService } from '../services/HapticService';
+import { LinearGradient } from 'expo-linear-gradient';
 
-const { width } = Dimensions.get('window');
+// Services
+import SocialService from '../services/SocialService';
+import { useAppData, useAppDataSelectors } from '../context/AppDataContext';
 
 const Colors = {
-  neonGreen: '#00FF88',
-  neonBlue: '#00AAFF',
-  neonPurple: '#AA55FF',
-  neonRed: '#FF4444',
-  neonYellow: '#FFD700',
-  neonPink: '#FF6B9D',
-  surface: { secondary: '#F8FAFC' }
+  primary: '#8B5CF6',
+  secondary: '#3B82F6',
+  success: '#10B981',
+  warning: '#F59E0B',
+  background: '#F8FAFC',
+  surface: '#FFFFFF',
+  text: '#1F2937',
+  textSecondary: '#6B7280',
 };
 
 const CommunityScreen = () => {
   const navigation = useNavigation();
-  const [activeTab, setActiveTab] = useState('feed');
-  const [socialFeed, setSocialFeed] = useState([]);
+  const { userProfile, achievements } = useAppDataSelectors();
+  const [selectedTab, setSelectedTab] = useState<'challenges' | 'leaderboard' | 'achievements'>('challenges');
   const [challenges, setChallenges] = useState([]);
-  const [showCreatePost, setShowCreatePost] = useState(false);
-  const [newPost, setNewPost] = useState('');
-  const [selectedPillar, setSelectedPillar] = useState('ALL');
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
-  const community = CommunitySystem.getInstance();
-  const haptics = HapticService.getInstance();
+  const [leaderboard, setLeaderboard] = useState([]);
+  
+  const socialService = SocialService.getInstance();
 
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 1000,
-      useNativeDriver: true,
-    }).start();
-
     loadCommunityData();
   }, []);
 
   const loadCommunityData = async () => {
-    const feed = community.getSocialFeed();
-    const activeChallenges = community.getActiveChallenges();
-    
-    setSocialFeed(feed);
-    setChallenges(activeChallenges);
-
-    // Generate default content if empty
-    if (feed.length === 0) {
-      await generateSampleContent();
+    try {
+      const challengesData = await socialService.getActiveChallenges();
+      setChallenges(challengesData);
+      
+      const leaderboardData = await socialService.getLeaderboard('global');
+      setLeaderboard(leaderboardData);
+    } catch (error) {
+      console.error('Error loading community data:', error);
     }
   };
 
-  const generateSampleContent = async () => {
-    const samplePosts = [
-      {
-        userId: 'user1',
-        username: 'Neural Explorer',
-        avatar: '🧠',
-        content: 'Just completed my 7-day neural optimization streak! The mind-body connection is incredible. #NeuralGrowth',
-        type: 'achievement',
-        pillar: 'MIND'
-      },
-      {
-        userId: 'user2',
-        username: 'Wellness Warrior',
-        avatar: '⚡',
-        content: 'Morning meditation session complete! Starting the day with spiritual alignment sets the tone for everything. 🧘‍♀️',
-        type: 'progress',
-        pillar: 'SPIRIT'
-      },
-      {
-        userId: 'user3',
-        username: 'Heart Coherence Master',
-        avatar: '❤️',
-        content: 'Gratitude practice tip: Write down 3 things you\'re grateful for before your morning coffee. Game changer! ☕✨',
-        type: 'tip',
-        pillar: 'HEART'
+  const handleShareAchievement = async (achievement: any) => {
+    try {
+      const success = await socialService.shareAchievement(achievement, userProfile);
+      if (success) {
+        Alert.alert('🎉 Shared!', 'Your achievement has been shared successfully!');
       }
-    ];
-
-    for (const post of samplePosts) {
-      await community.createSocialPost(post);
-    }
-
-    await community.generateDefaultChallenges();
-    loadCommunityData();
-  };
-
-  const createPost = async () => {
-    if (newPost.trim().length === 0) return;
-
-    haptics.success();
-    await community.createSocialPost({
-      userId: 'currentUser',
-      username: 'You',
-      avatar: '🌟',
-      content: newPost,
-      type: 'motivation',
-      pillar: selectedPillar !== 'ALL' ? selectedPillar : undefined
-    });
-
-    setNewPost('');
-    setShowCreatePost(false);
-    loadCommunityData();
-  };
-
-  const likePost = async (postId: string) => {
-    haptics.light();
-    await community.likePost(postId);
-    loadCommunityData();
-  };
-
-  const joinChallenge = async (challengeId: string) => {
-    haptics.medium();
-    const success = await community.joinChallenge(challengeId, 'currentUser', 'You', '🌟');
-    if (success) {
-      Alert.alert('Success!', 'You\'ve joined the challenge. Let\'s optimize those neural pathways!');
-      loadCommunityData();
+    } catch (error) {
+      Alert.alert('Error', 'Unable to share achievement. Please try again.');
     }
   };
 
-  const TabButton = ({ title, icon, isActive, onPress }) => (
-    <TouchableOpacity
-      style={[styles.tabButton, isActive && styles.tabButtonActive]}
-      onPress={onPress}
+  const handleJoinChallenge = async (challengeId: string) => {
+    try {
+      const success = await socialService.joinChallenge(challengeId);
+      if (success) {
+        Alert.alert('🚀 Joined!', 'You have successfully joined the challenge!');
+        loadCommunityData(); // Refresh data
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Unable to join challenge. Please try again.');
+    }
+  };
+
+  const renderHeader = () => (
+    <LinearGradient
+      colors={[Colors.primary, Colors.secondary]}
+      style={styles.header}
     >
-      <Ionicons name={icon} size={20} color={isActive ? '#000' : '#666'} />
-      <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{title}</Text>
-    </TouchableOpacity>
-  );
-
-  const PostCard = ({ post }) => (
-    <GlassPanel style={styles.postCard}>
-      <View style={styles.postHeader}>
-        <View style={styles.userInfo}>
-          <Text style={styles.userAvatar}>{post.avatar}</Text>
-          <View>
-            <Text style={styles.username}>{post.username}</Text>
-            <Text style={styles.postTime}>
-              {new Date(post.timestamp).toLocaleDateString()}
-            </Text>
-          </View>
-        </View>
-        {post.pillar && (
-          <View style={[styles.pillarBadge, { backgroundColor: getPillarColor(post.pillar) }]}>
-            <Text style={styles.pillarBadgeText}>{post.pillar}</Text>
-          </View>
-        )}
-      </View>
-      
-      <Text style={styles.postContent}>{post.content}</Text>
-      
-      <View style={styles.postActions}>
-        <TouchableOpacity style={styles.actionButton} onPress={() => likePost(post.id)}>
-          <Ionicons name="heart" size={20} color={Colors.neonRed} />
-          <Text style={styles.actionText}>{post.likes}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="chatbubble" size={20} color={Colors.neonBlue} />
-          <Text style={styles.actionText}>{post.comments.length}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="share" size={20} color={Colors.neonGreen} />
-          <Text style={styles.actionText}>Share</Text>
-        </TouchableOpacity>
-      </View>
-    </GlassPanel>
-  );
-
-  const ChallengeCard = ({ challenge }) => (
-    <GlassPanel style={styles.challengeCard}>
-      <View style={styles.challengeHeader}>
-        <Text style={styles.challengeTitle}>{challenge.title}</Text>
-        <View style={[styles.difficultyBadge, { backgroundColor: getDifficultyColor(challenge.difficulty) }]}>
-          <Text style={styles.difficultyText}>{challenge.difficulty.toUpperCase()}</Text>
-        </View>
-      </View>
-      
-      <Text style={styles.challengeDescription}>{challenge.description}</Text>
-      
-      <View style={styles.challengeStats}>
-        <View style={styles.statItem}>
-          <Ionicons name="people" size={16} color={Colors.neonBlue} />
-          <Text style={styles.statText}>{challenge.participants.length} joined</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Ionicons name="calendar" size={16} color={Colors.neonGreen} />
-          <Text style={styles.statText}>{challenge.duration} days</Text>
-        </View>
-      </View>
-
-      <View style={styles.challengeRewards}>
-        <Text style={styles.rewardsTitle}>Rewards:</Text>
-        {challenge.rewards.slice(0, 2).map((reward, index) => (
-          <View key={index} style={styles.rewardItem}>
-            <Text style={styles.rewardIcon}>{getRewardIcon(reward.type)}</Text>
-            <Text style={styles.rewardText}>{reward.name}</Text>
-          </View>
-        ))}
-      </View>
-
-      <TouchableOpacity style={styles.joinButton} onPress={() => joinChallenge(challenge.id)}>
-        <Text style={styles.joinButtonText}>JOIN CHALLENGE</Text>
+      <TouchableOpacity 
+        style={styles.backButton} 
+        onPress={() => navigation.goBack()}
+      >
+        <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
       </TouchableOpacity>
-    </GlassPanel>
+      
+      <View style={styles.headerContent}>
+        <Text style={styles.headerTitle}>Community</Text>
+        <Text style={styles.headerSubtitle}>Connect • Share • Grow Together</Text>
+      </View>
+
+      <TouchableOpacity style={styles.shareButton}>
+        <Ionicons name="share-social" size={24} color="#FFFFFF" />
+      </TouchableOpacity>
+    </LinearGradient>
   );
 
-  const LeaderboardCard = ({ entry, index }) => (
-    <View style={[styles.leaderboardItem, index < 3 && styles.topThree]}>
-      <View style={styles.rankContainer}>
-        <Text style={[styles.rank, index < 3 && styles.topRank]}>{entry.rank}</Text>
-        {index === 0 && <Ionicons name="trophy" size={16} color={Colors.neonYellow} />}
-        {index === 1 && <Ionicons name="medal" size={16} color="#C0C0C0" />}
-        {index === 2 && <Ionicons name="medal" size={16} color="#CD7F32" />}
-      </View>
-      
-      <Text style={styles.leaderboardAvatar}>{entry.avatar}</Text>
-      <View style={styles.leaderboardInfo}>
-        <Text style={styles.leaderboardName}>{entry.username}</Text>
-        <Text style={styles.leaderboardScore}>{entry.score} points</Text>
-      </View>
-      
-      <View style={styles.progressContainer}>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${entry.progress}%` }]} />
-        </View>
-        <Text style={styles.progressText}>{entry.progress}%</Text>
-      </View>
+  const renderTabBar = () => (
+    <View style={styles.tabBar}>
+      {[
+        { key: 'challenges', label: 'Challenges', icon: 'flag' },
+        { key: 'leaderboard', label: 'Leaderboard', icon: 'trophy' },
+        { key: 'achievements', label: 'Share', icon: 'share' }
+      ].map(tab => (
+        <TouchableOpacity
+          key={tab.key}
+          style={[styles.tab, selectedTab === tab.key && styles.tabActive]}
+          onPress={() => setSelectedTab(tab.key as any)}
+        >
+          <Ionicons 
+            name={tab.icon as any} 
+            size={20} 
+            color={selectedTab === tab.key ? Colors.primary : Colors.textSecondary} 
+          />
+          <Text style={[
+            styles.tabLabel,
+            selectedTab === tab.key && styles.tabLabelActive
+          ]}>
+            {tab.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
     </View>
   );
+
+  const renderChallenges = () => (
+    <View style={styles.challengesContainer}>
+      <Text style={styles.sectionTitle}>Active Challenges</Text>
+      {challenges.map((challenge: any) => (
+        <View key={challenge.id} style={styles.challengeCard}>
+          <View style={styles.challengeHeader}>
+            <Text style={styles.challengeTitle}>{challenge.title}</Text>
+            <View style={[styles.pillarBadge, { backgroundColor: getPillarColor(challenge.pillar) }]}>
+              <Text style={styles.pillarText}>{challenge.pillar.toUpperCase()}</Text>
+            </View>
+          </View>
+          
+          <Text style={styles.challengeDescription}>{challenge.description}</Text>
+          
+          <View style={styles.challengeStats}>
+            <Text style={styles.statText}>👥 {challenge.participants} participants</Text>
+            <Text style={styles.statText}>⏱️ {challenge.duration} days</Text>
+          </View>
+
+          <TouchableOpacity 
+            style={[
+              styles.joinButton,
+              challenge.isJoined && styles.joinedButton
+            ]}
+            onPress={() => !challenge.isJoined && handleJoinChallenge(challenge.id)}
+          >
+            <Text style={[
+              styles.joinButtonText,
+              challenge.isJoined && styles.joinedButtonText
+            ]}>
+              {challenge.isJoined ? '✓ Joined' : 'Join Challenge'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+    </View>
+  );
+
+  const renderLeaderboard = () => (
+    <View style={styles.leaderboardContainer}>
+      <Text style={styles.sectionTitle}>Global Leaderboard</Text>
+      {leaderboard.slice(0, 10).map((user: any, index) => (
+        <View key={user.id} style={styles.leaderboardItem}>
+          <View style={styles.rankContainer}>
+            <Text style={styles.rank}>#{user.rank}</Text>
+            {index < 3 && (
+              <Text style={styles.medal}>
+                {index === 0 ? '🏆' : index === 1 ? '🥈' : '🥉'}
+              </Text>
+            )}
+          </View>
+          
+          <View style={styles.userInfo}>
+            <Text style={styles.username}>{user.username}</Text>
+            <Text style={styles.userStats}>
+              Level {user.level} • {user.streak} day streak
+            </Text>
+          </View>
+          
+          <View style={styles.scoreContainer}>
+            <Text style={styles.score}>{user.score}</Text>
+            <Text style={styles.scoreLabel}>points</Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+
+  const renderAchievementSharing = () => (
+    <View style={styles.sharingContainer}>
+      <Text style={styles.sectionTitle}>Share Your Achievements</Text>
+      {achievements.slice(0, 5).map((achievement: any) => (
+        <View key={achievement.id} style={styles.achievementCard}>
+          <View style={styles.achievementInfo}>
+            <Text style={styles.achievementTitle}>{achievement.title}</Text>
+            <Text style={styles.achievementDescription}>{achievement.description}</Text>
+            <View style={[styles.rarityBadge, { backgroundColor: getRarityColor(achievement.rarity) }]}>
+              <Text style={styles.rarityText}>{achievement.rarity.toUpperCase()}</Text>
+            </View>
+          </View>
+          
+          <TouchableOpacity 
+            style={styles.shareAchievementButton}
+            onPress={() => handleShareAchievement(achievement)}
+          >
+            <Ionicons name="share" size={16} color="#FFFFFF" />
+            <Text style={styles.shareButtonText}>Share</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+    </View>
+  );
+
+  const renderTabContent = () => {
+    switch (selectedTab) {
+      case 'challenges':
+        return renderChallenges();
+      case 'leaderboard':
+        return renderLeaderboard();
+      case 'achievements':
+        return renderAchievementSharing();
+      default:
+        return renderChallenges();
+    }
+  };
 
   const getPillarColor = (pillar: string) => {
     const colors = {
-      BODY: Colors.neonRed,
-      MIND: Colors.neonBlue,
-      HEART: Colors.neonPink,
-      SPIRIT: Colors.neonPurple,
-      DIET: Colors.neonGreen
+      body: '#EF4444',
+      mind: '#3B82F6',
+      heart: '#EC4899',
+      spirit: '#8B5CF6',
+      diet: '#10B981'
     };
-    return colors[pillar] || Colors.neonYellow;
+    return colors[pillar as keyof typeof colors] + '20' || Colors.textSecondary + '20';
   };
 
-  const getDifficultyColor = (difficulty: string) => {
+  const getRarityColor = (rarity: string) => {
     const colors = {
-      beginner: Colors.neonGreen,
-      intermediate: Colors.neonYellow,
-      advanced: Colors.neonRed
+      common: '#6B7280',
+      rare: '#3B82F6',
+      epic: '#8B5CF6',
+      legendary: '#F59E0B'
     };
-    return colors[difficulty] || Colors.neonBlue;
-  };
-
-  const getRewardIcon = (type: string) => {
-    const icons = {
-      badge: '🏆',
-      points: '⭐',
-      premium: '💎',
-      physical: '🎁'
-    };
-    return icons[type] || '🎯';
-  };
-
-  const renderFeedTab = () => (
-    <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-      <View style={styles.createPostContainer}>
-        <TouchableOpacity style={styles.createPostButton} onPress={() => setShowCreatePost(true)}>
-          <Ionicons name="add" size={24} color={Colors.neonGreen} />
-          <Text style={styles.createPostText}>Share your neural journey...</Text>
-        </TouchableOpacity>
-      </View>
-
-      {socialFeed.map(post => (
-        <PostCard key={post.id} post={post} />
-      ))}
-    </ScrollView>
-  );
-
-  const renderChallengesTab = () => (
-    <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-      <View style={styles.challengesHeader}>
-        <Text style={styles.sectionTitle}>🏆 Active Neural Challenges</Text>
-        <Text style={styles.sectionSubtitle}>Join community challenges and optimize together!</Text>
-      </View>
-
-      {challenges.map(challenge => (
-        <ChallengeCard key={challenge.id} challenge={challenge} />
-      ))}
-    </ScrollView>
-  );
-
-  const renderLeaderboardTab = () => {
-    const topChallenge = challenges[0];
-    const leaderboard = topChallenge ? community.getLeaderboard(topChallenge.id) : [];
-
-    return (
-      <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-        <GlassPanel style={styles.leaderboardHeader}>
-          <Text style={styles.sectionTitle}>🌟 Global Leaderboard</Text>
-          <Text style={styles.sectionSubtitle}>
-            {topChallenge ? topChallenge.title : 'Neural Optimization Champions'}
-          </Text>
-        </GlassPanel>
-
-        {leaderboard.map((entry, index) => (
-          <GlassPanel key={entry.userId} style={{ marginBottom: 12 }}>
-            <LeaderboardCard entry={entry} index={index} />
-          </GlassPanel>
-        ))}
-      </ScrollView>
-    );
+    return colors[rarity as keyof typeof colors] || Colors.textSecondary;
   };
 
   return (
-    <View style={styles.container}>
-      <Animated.View style={{ opacity: fadeAnim, flex: 1 }}>
-        {/* Header */}
-        <GlassPanel style={{ marginHorizontal: 16, marginTop: 40 }}>
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.goBack()}>
-              <Ionicons name="arrow-back" size={24} color={Colors.neonGreen} />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>NEURAL COMMUNITY</Text>
-            <TouchableOpacity>
-              <Ionicons name="notifications" size={24} color={Colors.neonBlue} />
-            </TouchableOpacity>
-          </View>
-        </GlassPanel>
-
-        {/* Tab Navigation */}
-        <GlassPanel style={{ marginHorizontal: 16, marginTop: 16 }}>
-          <View style={styles.tabNavigation}>
-            <TabButton
-              title="Feed"
-              icon="home"
-              isActive={activeTab === 'feed'}
-              onPress={() => setActiveTab('feed')}
-            />
-            <TabButton
-              title="Challenges"
-              icon="trophy"
-              isActive={activeTab === 'challenges'}
-              onPress={() => setActiveTab('challenges')}
-            />
-            <TabButton
-              title="Leaderboard"
-              icon="stats-chart"
-              isActive={activeTab === 'leaderboard'}
-              onPress={() => setActiveTab('leaderboard')}
-            />
-          </View>
-        </GlassPanel>
-
-        {/* Tab Content */}
-        <View style={styles.content}>
-          {activeTab === 'feed' && renderFeedTab()}
-          {activeTab === 'challenges' && renderChallengesTab()}
-          {activeTab === 'leaderboard' && renderLeaderboardTab()}
-        </View>
-
-        {/* Create Post Modal */}
-        <Modal visible={showCreatePost} animationType="slide" presentationStyle="pageSheet">
-          <View style={styles.modalContainer}>
-            <GlassPanel style={{ marginTop: 50, marginHorizontal: 16 }}>
-              <View style={styles.modalHeader}>
-                <TouchableOpacity onPress={() => setShowCreatePost(false)}>
-                  <Ionicons name="close" size={24} color={Colors.neonGreen} />
-                </TouchableOpacity>
-                <Text style={styles.modalTitle}>Share Your Journey</Text>
-                <TouchableOpacity onPress={createPost}>
-                  <Ionicons name="checkmark" size={24} color={Colors.neonGreen} />
-                </TouchableOpacity>
-              </View>
-            </GlassPanel>
-
-            <GlassPanel style={{ margin: 16, padding: 20 }}>
-              <TextInput
-                style={styles.postInput}
-                placeholder="Share your neural optimization journey, tips, or achievements..."
-                value={newPost}
-                onChangeText={setNewPost}
-                multiline
-                numberOfLines={4}
-              />
-
-              <View style={styles.pillarSelector}>
-                <Text style={styles.pillarLabel}>Select Pillar:</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {['ALL', 'BODY', 'MIND', 'HEART', 'SPIRIT', 'DIET'].map(pillar => (
-                    <TouchableOpacity
-                      key={pillar}
-                      style={[
-                        styles.pillarOption,
-                        selectedPillar === pillar && styles.pillarOptionActive,
-                        { borderColor: getPillarColor(pillar) }
-                      ]}
-                      onPress={() => setSelectedPillar(pillar)}
-                    >
-                      <Text style={[
-                        styles.pillarOptionText,
-                        selectedPillar === pillar && { color: getPillarColor(pillar) }
-                      ]}>
-                        {pillar}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            </GlassPanel>
-          </View>
-        </Modal>
-      </Animated.View>
-    </View>
+    <SafeAreaView style={styles.container}>
+      {renderHeader()}
+      {renderTabBar()}
+      <ScrollView 
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {renderTabContent()}
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
+// Comprehensive styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.surface.secondary,
+    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 16,
+  },
+  headerContent: {
+    flex: 1,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: Colors.neonGreen,
-    fontFamily: Platform.OS === 'ios' ? 'SF Mono' : 'monospace',
-    letterSpacing: 2,
+    color: '#FFFFFF',
   },
-  tabNavigation: {
+  headerSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
+  },
+  shareButton: {
+    padding: 8,
+  },
+  tabBar: {
     flexDirection: 'row',
-    padding: 16,
+    backgroundColor: Colors.surface,
+    marginHorizontal: 20,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+    marginTop: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
   },
-  tabButton: {
+  tab: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginHorizontal: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    gap: 6,
   },
-  tabButtonActive: {
-    backgroundColor: Colors.neonGreen,
+  tabActive: {
+    backgroundColor: Colors.primary + '20',
   },
-  tabText: {
+  tabLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#666',
-    marginLeft: 6,
-    fontFamily: Platform.OS === 'ios' ? 'SF Mono' : 'monospace',
+    color: Colors.textSecondary,
   },
-  tabTextActive: {
-    color: '#000',
+  tabLabelActive: {
+    color: Colors.primary,
   },
   content: {
     flex: 1,
-    padding: 16,
   },
-  tabContent: {
-    flex: 1,
-  },
-  createPostContainer: {
-    marginBottom: 20,
-  },
-  createPostButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: 'rgba(0, 255, 136, 0.1)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.neonGreen,
-  },
-  createPostText: {
-    fontSize: 16,
-    color: '#666',
-    marginLeft: 12,
-    flex: 1,
-  },
-  postCard: {
-    padding: 16,
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: Colors.text,
     marginBottom: 16,
   },
-  postHeader: {
+  
+  // Challenges
+  challengesContainer: {
+    paddingHorizontal: 20,
+  },
+  challengeCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  challengeHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    alignItems: 'flex-start',
+    marginBottom: 8,
   },
-  userInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  userAvatar: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  username: {
-    fontSize: 16,
+  challengeTitle: {
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
-  },
-  postTime: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 2,
+    color: Colors.text,
+    flex: 1,
+    marginRight: 12,
   },
   pillarBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
   },
-  pillarBadgeText: {
-    fontSize: 12,
-    color: '#000',
-    fontWeight: 'bold',
-    fontFamily: Platform.OS === 'ios' ? 'SF Mono' : 'monospace',
-  },
-  postContent: {
-    fontSize: 16,
-    color: '#333',
-    lineHeight: 22,
-    marginBottom: 16,
-  },
-  postActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-    paddingTop: 12,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  actionText: {
-    fontSize: 14,
-    color: '#666',
-    marginLeft: 4,
-  },
-  challengeCard: {
-    padding: 20,
-    marginBottom: 16,
-  },
-  challengeHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  challengeTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    flex: 1,
-    fontFamily: Platform.OS === 'ios' ? 'SF Mono' : 'monospace',
-  },
-  difficultyBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  difficultyText: {
+  pillarText: {
     fontSize: 10,
-    color: '#000',
-    fontWeight: 'bold',
-    fontFamily: Platform.OS === 'ios' ? 'SF Mono' : 'monospace',
+    fontWeight: '600',
+    color: Colors.text,
   },
   challengeDescription: {
     fontSize: 14,
-    color: '#666',
+    color: Colors.textSecondary,
     lineHeight: 20,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   challengeStats: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 16,
   },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   statText: {
-    fontSize: 14,
-    color: '#666',
-    marginLeft: 6,
-  },
-  challengeRewards: {
-    marginBottom: 16,
-  },
-  rewardsTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: Colors.neonBlue,
-    marginBottom: 8,
-  },
-  rewardItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  rewardIcon: {
-    fontSize: 16,
-    marginRight: 8,
-  },
-  rewardText: {
-    fontSize: 14,
-    color: '#333',
+    fontSize: 12,
+    color: Colors.textSecondary,
   },
   joinButton: {
-    backgroundColor: Colors.neonGreen,
-    borderRadius: 12,
-    padding: 14,
+    backgroundColor: Colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
     alignItems: 'center',
+  },
+  joinedButton: {
+    backgroundColor: Colors.success,
   },
   joinButtonText: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000',
-    fontFamily: Platform.OS === 'ios' ? 'SF Mono' : 'monospace',
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
-  leaderboardHeader: {
-    padding: 20,
-    marginBottom: 16,
-    alignItems: 'center',
+  joinedButtonText: {
+    color: '#FFFFFF',
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.neonBlue,
-    textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? 'SF Mono' : 'monospace',
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 4,
+
+  // Leaderboard
+  leaderboardContainer: {
+    paddingHorizontal: 20,
   },
   leaderboardItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
     padding: 16,
-  },
-  topThree: {
-    backgroundColor: 'rgba(255, 215, 0, 0.1)',
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   rankContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    width: 50,
+    width: 60,
   },
   rank: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#666',
-    marginRight: 4,
-    fontFamily: Platform.OS === 'ios' ? 'SF Mono' : 'monospace',
-  },
-  topRank: {
-    color: Colors.neonYellow,
-  },
-  leaderboardAvatar: {
-    fontSize: 20,
-    marginRight: 12,
-  },
-  leaderboardInfo: {
-    flex: 1,
-  },
-  leaderboardName: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333',
+    color: Colors.text,
   },
-  leaderboardScore: {
-    fontSize: 14,
-    color: '#666',
+  medal: {
+    fontSize: 18,
+    marginLeft: 4,
+  },
+  userInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  username: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.text,
+  },
+  userStats: {
+    fontSize: 12,
+    color: Colors.textSecondary,
     marginTop: 2,
   },
-  progressContainer: {
+  scoreContainer: {
     alignItems: 'flex-end',
   },
-  progressBar: {
-    width: 60,
-    height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 4,
-    marginBottom: 4,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: Colors.neonGreen,
-    borderRadius: 4,
-  },
-  progressText: {
-    fontSize: 12,
-    color: '#666',
-    fontFamily: Platform.OS === 'ios' ? 'SF Mono' : 'monospace',
-  },
-  challengesHeader: {
-    marginBottom: 20,
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: Colors.surface.secondary,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalTitle: {
+  score: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: Colors.neonGreen,
-    fontFamily: Platform.OS === 'ios' ? 'SF Mono' : 'monospace',
+    color: Colors.primary,
   },
-  postInput: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
+  scoreLabel: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+
+  // Achievement Sharing
+  sharingContainer: {
+    paddingHorizontal: 20,
+  },
+  achievementCard: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
     padding: 16,
-    fontSize: 16,
-    color: '#333',
-    minHeight: 120,
-    textAlignVertical: 'top',
-    marginBottom: 20,
+    marginBottom: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  pillarSelector: {
-    marginTop: 16,
+  achievementInfo: {
+    flex: 1,
+    marginRight: 12,
   },
-  pillarLabel: {
+  achievementTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: Colors.neonBlue,
-    marginBottom: 12,
+    color: Colors.text,
+    marginBottom: 4,
   },
-  pillarOption: {
+  achievementDescription: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginBottom: 8,
+  },
+  rarityBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  rarityText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  shareAchievementButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1,
-    marginRight: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 8,
+    gap: 4,
   },
-  pillarOptionActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  pillarOptionText: {
+  shareButtonText: {
     fontSize: 14,
-    color: '#666',
     fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
 

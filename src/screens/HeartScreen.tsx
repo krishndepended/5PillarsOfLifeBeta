@@ -1,22 +1,28 @@
-// src/screens/HeartScreen.tsx - COMPLETE PROPERLY IMPLEMENTED HEART OPTIMIZATION SYSTEM
-import React, { useEffect, useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
+// src/screens/HeartScreen.tsx - CORRECTED VERSION (JSX SYNTAX FIXED)
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
   ScrollView,
-  Platform,
+  TouchableOpacity,
   Animated,
+  Platform,
+  Alert,
+  SafeAreaView,
+  TextInput,
+  Modal,
   Dimensions,
-  Alert
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAppDataSelectors, useAppData } from '../context/AppDataContext';
-import { usePerformanceOptimization, PerformanceMonitor } from '../hooks/usePerformanceOptimization';
-import NotificationManager from '../utils/NotificationManager';
+
+// Real Data Integration
+import { useAppData, useAppDataSelectors } from '../context/AppDataContext';
+
+// Components
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const { width } = Dimensions.get('window');
 
@@ -27,532 +33,554 @@ const Colors = {
   textSecondary: '#6B7280',
   accent: '#3B82F6',
   success: '#10B981',
-  heart: '#EC4899',
   warning: '#F59E0B',
+  danger: '#EF4444',
+  heart: '#EC4899',
+  heartLight: '#FDF2F8',
   spirit: '#8B5CF6',
 };
 
-interface EmotionalMetrics {
-  heartCoherence: number;
-  emotionalBalance: number;
-  empathyLevel: number;
-  selfAwareness: number;
-  socialConnection: number;
-  stressResilience: number;
-}
-
-interface HeartCoherenceSession {
+interface MoodEntry {
   id: string;
-  name: string;
-  type: 'breathing' | 'gratitude' | 'compassion' | 'forgiveness';
-  duration: number;
-  technique: string;
-  guidedSteps: string[];
-  expectedOutcome: string;
+  date: string;
+  mood: 'excellent' | 'good' | 'okay' | 'low' | 'difficult';
+  energy: number; // 1-10
+  stress: number; // 1-10
+  gratitude: string[];
+  reflection: string;
+  triggers: string[];
 }
 
 const HeartScreen = () => {
   const navigation = useNavigation();
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
-  const heartPulseAnim = React.useRef(new Animated.Value(1)).current;
   const { actions } = useAppData();
-  const { pillarScores, userProfile } = useAppDataSelectors();
-  const { measurePerformance } = usePerformanceOptimization();
-  const notificationManager = NotificationManager.getInstance();
+  const { userProfile, pillarScores, sessions } = useAppDataSelectors();
+  
+  // Animation refs
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const heartBeatAnim = useRef(new Animated.Value(1)).current;
+  
+  // State
+  const [selectedTab, setSelectedTab] = useState<'journal' | 'assessment' | 'relationships' | 'practices'>('journal');
+  const [showMoodModal, setShowMoodModal] = useState(false);
+  const [currentMoodEntry, setCurrentMoodEntry] = useState<Partial<MoodEntry>>({});
 
-  const [emotionalMetrics, setEmotionalMetrics] = useState<EmotionalMetrics>({
-    heartCoherence: 82,
-    emotionalBalance: 78,
-    empathyLevel: 85,
-    selfAwareness: 80,
-    socialConnection: 75,
-    stressResilience: 88
+  // Mock emotional data
+  const [emotionalMetrics] = useState({
+    overallWellbeing: 78,
+    emotionalIntelligence: 82,
+    stressLevel: 35, // Lower is better
+    gratitudeStreak: 12,
+    heartSessions: sessions.filter(s => s.pillar === 'heart').length,
+    avgMood: 3.8, // Out of 5
+    relationshipScore: 85,
   });
 
-  const [activeSession, setActiveSession] = useState<HeartCoherenceSession | null>(null);
-  const [sessionTimer, setSessionTimer] = useState(0);
-  const [isSessionActive, setIsSessionActive] = useState(false);
-  const [currentBreathPhase, setCurrentBreathPhase] = useState<'inhale' | 'hold' | 'exhale'>('inhale');
-  const [breathingRate, setBreathingRate] = useState(5);
+  // Recent mood entries
+  const [moodEntries, setMoodEntries] = useState<MoodEntry[]>([
+    {
+      id: 'mood-1',
+      date: new Date().toISOString(),
+      mood: 'good',
+      energy: 7,
+      stress: 4,
+      gratitude: ['Family time', 'Good health', 'Learning opportunities'],
+      reflection: 'Feeling balanced today with moments of joy and minor challenges.',
+      triggers: []
+    }
+  ]);
 
+  // Effects
   useEffect(() => {
-    const measurement = measurePerformance('HeartScreen');
-    
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: Platform.OS !== 'web',
-    }).start(() => {
-      measurement.end();
-    });
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+    ]).start();
 
-    startHeartPulseAnimation();
-    initializeHeartOptimization();
-  }, [fadeAnim]);
-
-  const startHeartPulseAnimation = () => {
-    const pulse = Animated.loop(
+    // Heartbeat animation
+    const heartBeatLoop = Animated.loop(
       Animated.sequence([
-        Animated.timing(heartPulseAnim, {
-          toValue: 1.2,
+        Animated.timing(heartBeatAnim, {
+          toValue: 1.1,
           duration: 800,
           useNativeDriver: Platform.OS !== 'web',
         }),
-        Animated.timing(heartPulseAnim, {
+        Animated.timing(heartBeatAnim, {
           toValue: 1,
           duration: 800,
           useNativeDriver: Platform.OS !== 'web',
         }),
       ])
     );
-    pulse.start();
-  };
+    heartBeatLoop.start();
 
-  const initializeHeartOptimization = async () => {
-    try {
-      generateHeartCoherenceSession();
-      updateEmotionalMetrics();
-      checkHeartAchievements();
-    } catch (error) {
-      console.error('Error initializing heart optimization:', error);
+    return () => heartBeatLoop.stop();
+  }, []);
+
+  // Handlers
+  const handleGoBack = useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate('Home' as never);
     }
-  };
+  }, [navigation]);
 
-  const generateHeartCoherenceSession = () => {
-    const currentScore = pillarScores.heart;
-    
-    const sessions: HeartCoherenceSession[] = [
-      {
-        id: 'heart-coherence-breathing',
-        name: 'Heart Coherence Breathing',
-        type: 'breathing',
-        duration: 10,
-        technique: '5-5 Coherent Breathing Pattern',
-        expectedOutcome: 'Enhanced heart rate variability and emotional balance',
-        guidedSteps: [
-          'Sit comfortably with your spine straight',
-          'Place one hand on your heart',
-          'Breathe in slowly for 5 seconds',
-          'Breathe out slowly for 5 seconds',
-          'Focus on feelings of appreciation and gratitude',
-          'Continue the rhythm while staying heart-focused'
-        ]
-      },
-      {
-        id: 'gratitude-practice',
-        name: 'Gratitude Heart Activation',
-        type: 'gratitude',
-        duration: 8,
-        technique: 'Heart-Focused Gratitude Meditation',
-        expectedOutcome: 'Increased positive emotions and heart coherence',
-        guidedSteps: [
-          'Center your attention in your heart area',
-          'Breathe slowly and deeply',
-          'Recall something you truly appreciate',
-          'Feel the warmth of gratitude in your heart',
-          'Expand this feeling throughout your body',
-          'Send gratitude to someone you love'
-        ]
-      },
-      {
-        id: 'compassion-meditation',
-        name: 'Compassion Cultivation',
-        type: 'compassion',
-        duration: 12,
-        technique: 'Loving-Kindness Heart Practice',
-        expectedOutcome: 'Enhanced empathy and emotional resilience',
-        guidedSteps: [
-          'Begin with compassion for yourself',
-          'Extend loving-kindness to loved ones',
-          'Include neutral people in your compassion',
-          'Embrace difficult relationships with forgiveness',
-          'Radiate love to all beings everywhere',
-          'Return to your heart center with peace'
-        ]
-      }
-    ];
+  const openMoodModal = useCallback(() => {
+    setCurrentMoodEntry({
+      id: `mood-${Date.now()}`,
+      date: new Date().toISOString(),
+      gratitude: [],
+      triggers: []
+    });
+    setShowMoodModal(true);
+  }, []);
 
-    setActiveSession(sessions[0]);
-  };
-
-  const updateEmotionalMetrics = () => {
-    setEmotionalMetrics(prev => ({
-      heartCoherence: Math.max(70, Math.min(100, prev.heartCoherence + (Math.random() - 0.3) * 4)),
-      emotionalBalance: Math.max(65, Math.min(100, prev.emotionalBalance + (Math.random() - 0.2) * 5)),
-      empathyLevel: Math.max(70, Math.min(100, prev.empathyLevel + (Math.random() - 0.1) * 3)),
-      selfAwareness: Math.max(70, Math.min(100, prev.selfAwareness + (Math.random() - 0.2) * 4)),
-      socialConnection: Math.max(60, Math.min(100, prev.socialConnection + (Math.random() - 0.3) * 6)),
-      stressResilience: Math.max(75, Math.min(100, prev.stressResilience + (Math.random() - 0.2) * 3))
-    }));
-  };
-
-  const checkHeartAchievements = async () => {
-    const achievements = [];
-    
-    if (pillarScores.heart >= 90) {
-      achievements.push('Heart Mastery Achievement');
-    }
-    
-    if (emotionalMetrics.heartCoherence >= 90) {
-      achievements.push('Heart Coherence Expert');
-    }
-    
-    if (emotionalMetrics.empathyLevel >= 90) {
-      achievements.push('Empathy Champion');
+  const saveMoodEntry = useCallback(async () => {
+    if (!currentMoodEntry.mood) {
+      Alert.alert('Please select a mood', 'Choose how you\'re feeling today before saving.');
+      return;
     }
 
-    for (const achievement of achievements) {
-      await notificationManager.scheduleAchievementNotification(achievement, 'heart');
-    }
-  };
+    const newEntry: MoodEntry = {
+      id: currentMoodEntry.id || `mood-${Date.now()}`,
+      date: currentMoodEntry.date || new Date().toISOString(),
+      mood: currentMoodEntry.mood,
+      energy: currentMoodEntry.energy || 5,
+      stress: currentMoodEntry.stress || 5,
+      gratitude: currentMoodEntry.gratitude || [],
+      reflection: currentMoodEntry.reflection || '',
+      triggers: currentMoodEntry.triggers || []
+    };
 
-  const startHeartSession = () => {
-    if (!activeSession) return;
-    
-    setIsSessionActive(true);
-    setSessionTimer(0);
-    setCurrentBreathPhase('inhale');
-    
-    const breathingInterval = setInterval(() => {
-      setCurrentBreathPhase(prev => {
-        switch (prev) {
-          case 'inhale': return 'hold';
-          case 'hold': return 'exhale';
-          case 'exhale': return 'inhale';
-          default: return 'inhale';
-        }
-      });
-    }, (60 / breathingRate / 3) * 1000);
+    setMoodEntries(prev => [newEntry, ...prev.slice(0, 9)]); // Keep last 10 entries
 
-    const timer = setInterval(() => {
-      setSessionTimer(prev => prev + 1);
-    }, 1000);
-
-    setTimeout(() => {
-      clearInterval(timer);
-      clearInterval(breathingInterval);
-      completeHeartSession();
-    }, activeSession.duration * 60 * 1000);
-
-    Alert.alert(
-      '❤️ Heart Session Started!',
-      `Beginning ${activeSession.name}. Focus on your heart and breathe with intention.`,
-      [{ text: 'Begin with Love', style: 'default' }]
-    );
-  };
-
-  const completeHeartSession = async () => {
-    if (!activeSession) return;
-
-    setIsSessionActive(false);
-    
-    const improvement = Math.floor(Math.random() * 6) + 2;
-    const newScore = Math.min(100, pillarScores.heart + improvement);
-    actions.updatePillarScore('heart', newScore);
-
-    actions.addSession({
+    // Add session
+    await actions.addSession({
       pillar: 'heart',
-      duration: Math.floor(sessionTimer / 60),
-      improvement: improvement
+      type: 'practice',
+      duration: 5,
+      date: new Date().toISOString(),
+      score: (currentMoodEntry.mood === 'excellent' ? 95 : 
+             currentMoodEntry.mood === 'good' ? 85 :
+             currentMoodEntry.mood === 'okay' ? 70 :
+             currentMoodEntry.mood === 'low' ? 55 : 40),
+      mood: currentMoodEntry.mood,
+      notes: `Mood journal: ${currentMoodEntry.reflection}`
     });
 
-    await notificationManager.scheduleAchievementNotification(
-      `Heart Session Complete: +${improvement}% Emotional Intelligence`,
-      'heart'
-    );
+    // Check for gratitude achievement
+    if (currentMoodEntry.gratitude && currentMoodEntry.gratitude.length >= 3) {
+      await actions.addAchievement({
+        title: '🙏 Gratitude Master',
+        description: 'Practiced gratitude with 3+ appreciations',
+        pillar: 'heart',
+        rarity: 'common'
+      });
+    }
 
+    setShowMoodModal(false);
+    setCurrentMoodEntry({});
+    
     Alert.alert(
-      '💖 Session Completed!',
-      `Beautiful heart work! Your emotional intelligence improved by ${improvement}%. Your heart coherence is strengthening!`,
-      [{ text: 'With Gratitude', style: 'default' }]
+      '💖 Mood Logged!',
+      'Your emotional check-in has been saved. Thank you for taking care of your heart.',
+      [{ text: 'Beautiful!', style: 'default' }]
     );
-  };
+  }, [currentMoodEntry, actions]);
+
+  // Render functions
+  const renderHeader = () => (
+    <LinearGradient
+      colors={[Colors.heart, '#DB2777']}
+      style={styles.header}
+    >
+      <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
+        <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+      </TouchableOpacity>
+      
+      <View style={styles.headerContent}>
+        <Text style={styles.headerTitle}>Heart Pillar</Text>
+        <Text style={styles.headerSubtitle}>Emotional Wellness • भावनात्मक कल्याण</Text>
+      </View>
+
+      <Animated.View style={[styles.headerHeart, { transform: [{ scale: heartBeatAnim }] }]}>
+        <Ionicons name="heart" size={32} color="#FFFFFF" />
+      </Animated.View>
+    </LinearGradient>
+  );
+
+  const renderTabBar = () => (
+    <View style={styles.tabBar}>
+      {[
+        { key: 'journal', label: 'Journal', icon: 'journal' },
+        { key: 'assessment', label: 'Assessment', icon: 'analytics' },
+        { key: 'relationships', label: 'Relations', icon: 'people' },
+        { key: 'practices', label: 'Practices', icon: 'heart' }
+      ].map(tab => (
+        <TouchableOpacity
+          key={tab.key}
+          style={[styles.tab, selectedTab === tab.key && styles.tabActive]}
+          onPress={() => setSelectedTab(tab.key as any)}
+        >
+          <Ionicons 
+            name={tab.icon as any} 
+            size={20} 
+            color={selectedTab === tab.key ? Colors.heart : Colors.textSecondary} 
+          />
+          <Text style={[
+            styles.tabLabel,
+            selectedTab === tab.key && styles.tabLabelActive
+          ]}>
+            {tab.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
 
   const renderEmotionalMetrics = () => (
-    <PerformanceMonitor>
-      <View style={styles.emotionalSection}>
-        <Text style={styles.sectionTitle}>Emotional Intelligence Metrics</Text>
-        
-        <View style={styles.metricsGrid}>
-          {[
-            { label: 'Heart Coherence', value: emotionalMetrics.heartCoherence, icon: 'heart', color: Colors.heart },
-            { label: 'Empathy', value: emotionalMetrics.empathyLevel, icon: 'people', color: Colors.success },
-            { label: 'Self-Awareness', value: emotionalMetrics.selfAwareness, icon: 'eye', color: Colors.accent },
-            { label: 'Resilience', value: emotionalMetrics.stressResilience, icon: 'shield', color: Colors.spirit }
-          ].map((metric, index) => (
-            <View key={index} style={styles.metricCard}>
-              <View style={[styles.metricIcon, { backgroundColor: metric.color }]}>
-                <Ionicons name={metric.icon as any} size={20} color="#FFFFFF" />
-              </View>
-              <Text style={styles.metricLabel}>{metric.label}</Text>
-              <Text style={styles.metricValue}>{metric.value}%</Text>
-              <View style={styles.metricBar}>
-                <View 
-                  style={[
-                    styles.metricBarFill, 
-                    { width: `${metric.value}%`, backgroundColor: metric.color }
-                  ]} 
-                />
-              </View>
-            </View>
-          ))}
+    <View style={styles.metricsContainer}>
+      <Text style={styles.sectionTitle}>Emotional Wellbeing</Text>
+      <View style={styles.metricsGrid}>
+        <View style={styles.metricCard}>
+          <Ionicons name="heart" size={24} color={Colors.heart} />
+          <Text style={styles.metricValue}>{emotionalMetrics.overallWellbeing}</Text>
+          <Text style={styles.metricLabel}>Overall Score</Text>
+        </View>
+        <View style={styles.metricCard}>
+          <Ionicons name="psychology" size={24} color={Colors.spirit} />
+          <Text style={styles.metricValue}>{emotionalMetrics.emotionalIntelligence}</Text>
+          <Text style={styles.metricLabel}>EQ Score</Text>
+        </View>
+        <View style={styles.metricCard}>
+          <Ionicons name="trending-down" size={24} color={Colors.success} />
+          <Text style={styles.metricValue}>{emotionalMetrics.stressLevel}%</Text>
+          <Text style={styles.metricLabel}>Stress Level</Text>
+        </View>
+        <View style={styles.metricCard}>
+          <Ionicons name="star" size={24} color={Colors.warning} />
+          <Text style={styles.metricValue}>{emotionalMetrics.gratitudeStreak}</Text>
+          <Text style={styles.metricLabel}>Gratitude Days</Text>
         </View>
       </View>
-    </PerformanceMonitor>
+    </View>
   );
 
-  const renderHeartCoherenceSession = () => (
-    <PerformanceMonitor>
-      <View style={styles.sessionSection}>
-        <Text style={styles.sectionTitle}>Heart Coherence Training</Text>
+  const renderMoodJournal = () => (
+    <View style={styles.journalContainer}>
+      <View style={styles.journalHeader}>
+        <Text style={styles.sectionTitle}>Mood Journal</Text>
+        <TouchableOpacity style={styles.addMoodButton} onPress={openMoodModal}>
+          <Ionicons name="add" size={20} color="#FFFFFF" />
+          <Text style={styles.addMoodText}>Log Mood</Text>
+        </TouchableOpacity>
+      </View>
 
-        {activeSession && (
-          <View style={styles.sessionCard}>
-            <LinearGradient
-              colors={[Colors.heart, '#F472B6']}
-              style={styles.sessionGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            >
-              <View style={styles.sessionInfo}>
-                <Text style={styles.sessionName}>{activeSession.name}</Text>
-                <Text style={styles.sessionDetails}>
-                  {activeSession.duration} min • {activeSession.technique}
+      {moodEntries.length === 0 ? (
+        <View style={styles.emptyJournal}>
+          <Ionicons name="journal" size={48} color={Colors.textSecondary} />
+          <Text style={styles.emptyJournalText}>Start your emotional journey</Text>
+          <Text style={styles.emptyJournalSubtext}>Log your first mood entry to track your heart's wellness</Text>
+        </View>
+      ) : (
+        moodEntries.slice(0, 5).map(entry => (
+          <View key={entry.id} style={styles.moodEntryCard}>
+            <View style={styles.moodEntryHeader}>
+              <View style={styles.moodInfo}>
+                <Text style={styles.moodValue}>
+                  {entry.mood === 'excellent' ? '😊 Excellent' :
+                   entry.mood === 'good' ? '🙂 Good' :
+                   entry.mood === 'okay' ? '😐 Okay' :
+                   entry.mood === 'low' ? '😔 Low' : '😰 Difficult'}
                 </Text>
-                <Text style={styles.sessionOutcome}>
-                  {activeSession.expectedOutcome}
+                <Text style={styles.moodDate}>
+                  {new Date(entry.date).toLocaleDateString()}
                 </Text>
               </View>
-
-              {isSessionActive ? (
-                <View style={styles.breathingGuide}>
-                  <Animated.View 
-                    style={[
-                      styles.heartPulse, 
-                      { transform: [{ scale: heartPulseAnim }] }
-                    ]}
-                  >
-                    <Ionicons name="heart" size={32} color="#FFFFFF" />
-                  </Animated.View>
-                  <Text style={styles.breathingPhase}>
-                    {currentBreathPhase.toUpperCase()}
-                  </Text>
-                  <Text style={styles.sessionTimerText}>
-                    {Math.floor(sessionTimer / 60)}:{(sessionTimer % 60).toString().padStart(2, '0')}
-                  </Text>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={styles.startSessionButton}
-                  onPress={startHeartSession}
-                >
-                  <Ionicons name="heart" size={24} color="#FFFFFF" />
-                  <Text style={styles.startSessionText}>Begin</Text>
-                </TouchableOpacity>
-              )}
-            </LinearGradient>
-
-            <View style={styles.stepsPreview}>
-              <Text style={styles.stepsTitle}>Guided Steps:</Text>
-              {activeSession.guidedSteps.slice(0, 3).map((step, index) => (
-                <Text key={index} style={styles.stepText}>
-                  {index + 1}. {step}
-                </Text>
-              ))}
-              {activeSession.guidedSteps.length > 3 && (
-                <Text style={styles.moreSteps}>
-                  +{activeSession.guidedSteps.length - 3} more steps...
-                </Text>
-              )}
+              <View style={styles.moodMetrics}>
+                <Text style={styles.moodMetric}>Energy: {entry.energy}/10</Text>
+                <Text style={styles.moodMetric}>Stress: {entry.stress}/10</Text>
+              </View>
             </View>
+            
+            {entry.reflection && (
+              <Text style={styles.moodReflection} numberOfLines={2}>
+                {entry.reflection}
+              </Text>
+            )}
+            
+            {entry.gratitude.length > 0 && (
+              <View style={styles.gratitudeSection}>
+                <Text style={styles.gratitudeTitle}>Grateful for:</Text>
+                <Text style={styles.gratitudeList}>
+                  {entry.gratitude.slice(0, 2).join(', ')}
+                  {entry.gratitude.length > 2 && ` +${entry.gratitude.length - 2} more`}
+                </Text>
+              </View>
+            )}
           </View>
-        )}
-      </View>
-    </PerformanceMonitor>
+        ))
+      )}
+    </View>
   );
 
-  const renderHeartOptimizationScore = () => (
-    <PerformanceMonitor>
-      <View style={styles.scoreSection}>
-        <LinearGradient
-          colors={[Colors.heart, '#F472B6']}
-          style={styles.scoreGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <View style={styles.scoreHeader}>
-            <Animated.View style={{ transform: [{ scale: heartPulseAnim }] }}>
-              <Ionicons name="heart" size={32} color="#FFFFFF" />
-            </Animated.View>
-            <Text style={styles.scoreTitle}>Heart Intelligence</Text>
-          </View>
-          <Text style={styles.scoreValue}>{pillarScores.heart}%</Text>
-          <Text style={styles.scoreSubtitle}>Emotional Mastery Level</Text>
-          
-          <View style={styles.coherenceIndicator}>
-            <Ionicons name="pulse" size={16} color="rgba(255,255,255,0.8)" />
-            <Text style={styles.coherenceText}>
-              Heart Coherence: {emotionalMetrics.heartCoherence}% - Excellent rhythm
-            </Text>
-          </View>
-
-          <View style={styles.emotionalStats}>
-            <View style={styles.emotionalStat}>
-              <Text style={styles.emotionalStatValue}>{emotionalMetrics.emotionalBalance}</Text>
-              <Text style={styles.emotionalStatLabel}>Balance</Text>
-            </View>
-            <View style={styles.emotionalStat}>
-              <Text style={styles.emotionalStatValue}>{emotionalMetrics.socialConnection}</Text>
-              <Text style={styles.emotionalStatLabel}>Connection</Text>
-            </View>
-          </View>
-        </LinearGradient>
-      </View>
-    </PerformanceMonitor>
+  const renderPlaceholderTab = (title: string, description: string) => (
+    <View style={styles.placeholderContainer}>
+      <Ionicons name="heart" size={64} color={Colors.textSecondary} />
+      <Text style={styles.placeholderTitle}>{title}</Text>
+      <Text style={styles.placeholderDescription}>{description}</Text>
+      <Text style={styles.placeholderNote}>Coming soon in next update!</Text>
+    </View>
   );
+
+  const renderTabContent = () => {
+    switch (selectedTab) {
+      case 'journal':
+        return (
+          <>
+            {renderEmotionalMetrics()}
+            {renderMoodJournal()}
+          </>
+        );
+      case 'assessment':
+        return renderPlaceholderTab(
+          'Emotional Intelligence Assessment',
+          'Discover your emotional strengths and growth areas with comprehensive EQ testing.'
+        );
+      case 'relationships':
+        return renderPlaceholderTab(
+          'Relationship Wisdom',
+          'Learn ancient practices for building deeper, more meaningful connections with others.'
+        );
+      case 'practices':
+        return renderPlaceholderTab(
+          'Heart-Opening Practices',
+          'Traditional meditation and compassion exercises to open and nourish your heart.'
+        );
+      default:
+        return renderMoodJournal();
+    }
+  };
 
   return (
-    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
-        </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Heart Intelligence</Text>
-          <Text style={styles.headerSubtitle}>Emotional & Heart Coherence</Text>
-        </View>
-        <TouchableOpacity style={styles.settingsButton}>
-          <Ionicons name="settings" size={20} color={Colors.heart} />
-        </TouchableOpacity>
-      </View>
+    <ErrorBoundary>
+      <SafeAreaView style={styles.container}>
+        <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+          {renderHeader()}
+          {renderTabBar()}
+          <ScrollView 
+            style={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContentContainer}
+          >
+            {renderTabContent()}
+          </ScrollView>
+        </Animated.View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {renderHeartOptimizationScore()}
-        {renderEmotionalMetrics()}
-        {renderHeartCoherenceSession()}
-      </ScrollView>
-    </Animated.View>
+        {/* CORRECTED MOOD ENTRY MODAL */}
+        <Modal
+          visible={showMoodModal}
+          animationType="slide"
+          onRequestClose={() => setShowMoodModal(false)}
+        >
+          <SafeAreaView style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={() => setShowMoodModal(false)}>
+                <Ionicons name="close" size={24} color={Colors.text} />
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>How are you feeling?</Text>
+              <TouchableOpacity onPress={saveMoodEntry}>
+                <Text style={styles.modalSave}>Save</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalContent}>
+              {/* Mood Selection */}
+              <Text style={styles.modalSectionTitle}>Current Mood</Text>
+              <View style={styles.moodOptions}>
+                {(['excellent', 'good', 'okay', 'low', 'difficult'] as const).map(mood => (
+                  <TouchableOpacity
+                    key={mood}
+                    style={[
+                      styles.moodOption,
+                      currentMoodEntry.mood === mood && styles.moodOptionSelected
+                    ]}
+                    onPress={() => setCurrentMoodEntry(prev => ({ ...prev, mood }))}
+                  >
+                    <Text style={styles.moodEmoji}>
+                      {mood === 'excellent' ? '😊' :
+                       mood === 'good' ? '🙂' :
+                       mood === 'okay' ? '😐' :
+                       mood === 'low' ? '😔' : '😰'}
+                    </Text>
+                    <Text style={styles.moodLabel}>{mood.charAt(0).toUpperCase() + mood.slice(1)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* CORRECTED Energy Slider */}
+              <Text style={styles.modalSectionTitle}>Energy Level: {currentMoodEntry.energy || 5}/10</Text>
+              <View style={styles.sliderContainer}>
+                <TouchableOpacity 
+                  style={styles.slider}
+                  onPress={(e) => {
+                    const x = e.nativeEvent.locationX;
+                    const width = 300; // Approximate slider width
+                    const value = Math.round((x / width) * 10) + 1;
+                    setCurrentMoodEntry(prev => ({ ...prev, energy: Math.max(1, Math.min(10, value)) }));
+                  }}
+                >
+                  <View style={[styles.sliderFill, { width: `${((currentMoodEntry.energy || 5) / 10) * 100}%` }]} />
+                </TouchableOpacity>
+              </View>
+
+              {/* CORRECTED Stress Slider */}
+              <Text style={styles.modalSectionTitle}>Stress Level: {currentMoodEntry.stress || 5}/10</Text>
+              <View style={styles.sliderContainer}>
+                <TouchableOpacity 
+                  style={styles.slider}
+                  onPress={(e) => {
+                    const x = e.nativeEvent.locationX;
+                    const width = 300;
+                    const value = Math.round((x / width) * 10) + 1;
+                    setCurrentMoodEntry(prev => ({ ...prev, stress: Math.max(1, Math.min(10, value)) }));
+                  }}
+                >
+                  <View style={[styles.sliderFill, { width: `${((currentMoodEntry.stress || 5) / 10) * 100}%`, backgroundColor: Colors.warning }]} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Reflection */}
+              <Text style={styles.modalSectionTitle}>Reflection</Text>
+              <TextInput
+                style={styles.reflectionInput}
+                placeholder="What's on your mind and heart today?"
+                multiline
+                numberOfLines={4}
+                value={currentMoodEntry.reflection}
+                onChangeText={(reflection) => setCurrentMoodEntry(prev => ({ ...prev, reflection }))}
+              />
+
+              {/* Gratitude */}
+              <Text style={styles.modalSectionTitle}>Gratitude (Optional)</Text>
+              <TextInput
+                style={styles.gratitudeInput}
+                placeholder="What are you grateful for today? (comma separated)"
+                value={(currentMoodEntry.gratitude || []).join(', ')}
+                onChangeText={(text) => setCurrentMoodEntry(prev => ({ 
+                  ...prev, 
+                  gratitude: text.split(',').map(item => item.trim()).filter(Boolean)
+                }))}
+              />
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
+      </SafeAreaView>
+    </ErrorBoundary>
   );
 };
 
+// Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-    paddingTop: Platform.OS === 'android' ? 25 : 0,
+  },
+  content: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    paddingVertical: 16,
+    paddingTop: Platform.OS === 'android' ? 40 : 16,
   },
   backButton: {
     padding: 8,
-    marginRight: 12,
+    marginRight: 16,
   },
   headerContent: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: Colors.text,
+    color: '#FFFFFF',
   },
   headerSubtitle: {
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: 'rgba(255,255,255,0.8)',
     marginTop: 2,
   },
-  settingsButton: {
+  headerHeart: {
     padding: 8,
   },
-  scrollView: {
+
+  // Tab Bar
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    marginHorizontal: 20,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    gap: 4,
+  },
+  tabActive: {
+    backgroundColor: Colors.heartLight,
+  },
+  tabLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  tabLabelActive: {
+    color: Colors.heart,
+  },
+
+  // Scroll Content
+  scrollContent: {
     flex: 1,
   },
-  scrollContent: {
+  scrollContentContainer: {
     paddingBottom: 100,
   },
-  scoreSection: {
-    marginHorizontal: 20,
-    marginTop: 16,
-    marginBottom: 24,
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  scoreGradient: {
-    padding: 24,
-    alignItems: 'center',
-  },
-  scoreHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  scoreTitle: {
-    fontSize: 18,
-    color: 'rgba(255,255,255,0.9)',
-    marginLeft: 8,
-    fontWeight: 'bold',
-  },
-  scoreValue: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  scoreSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-    marginBottom: 16,
-  },
-  coherenceIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  coherenceText: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
-    marginLeft: 4,
-    fontStyle: 'italic',
-  },
-  emotionalStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-  },
-  emotionalStat: {
-    alignItems: 'center',
-  },
-  emotionalStatValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  emotionalStatLabel: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 2,
-  },
+
+  // Common Sections
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: Colors.text,
-    marginBottom: 16,
+    marginBottom: 8,
   },
-  emotionalSection: {
+
+  // Emotional Metrics
+  metricsContainer: {
     marginHorizontal: 20,
     marginBottom: 24,
   },
@@ -562,136 +590,273 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   metricCard: {
+    flex: 1,
+    minWidth: '45%',
     backgroundColor: Colors.surface,
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
-    width: (width - 56) / 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     elevation: 4,
   },
-  metricIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
+  metricValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginVertical: 8,
   },
   metricLabel: {
     fontSize: 12,
     color: Colors.textSecondary,
-    marginBottom: 4,
+    textAlign: 'center',
   },
-  metricValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: Colors.text,
-    marginBottom: 8,
-  },
-  metricBar: {
-    width: '100%',
-    height: 4,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  metricBarFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-  sessionSection: {
+
+  // Mood Journal
+  journalContainer: {
     marginHorizontal: 20,
     marginBottom: 24,
   },
-  sessionCard: {
+  journalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  addMoodButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.heart,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 4,
+  },
+  addMoodText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  emptyJournal: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
-    overflow: 'hidden',
+    padding: 40,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  emptyJournalText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyJournalSubtext: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  moodEntryCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  sessionGradient: {
+  moodEntryHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    padding: 20,
-  },
-  sessionInfo: {
-    flex: 1,
-  },
-  sessionName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  sessionDetails: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 4,
-  },
-  sessionOutcome: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.7)',
-    marginTop: 4,
-    lineHeight: 14,
-  },
-  startSessionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  startSessionText: {
-    color: '#FFFFFF',
-    marginLeft: 4,
-    fontWeight: '600',
-  },
-  breathingGuide: {
-    alignItems: 'center',
-  },
-  heartPulse: {
+    justifyContent: 'space-between',
     marginBottom: 8,
   },
-  breathingPhase: {
+  moodInfo: {
+    flex: 1,
+  },
+  moodValue: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  sessionTimerText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  stepsPreview: {
-    padding: 16,
-  },
-  stepsTitle: {
-    fontSize: 14,
-    fontWeight: '600',
     color: Colors.text,
-    marginBottom: 12,
   },
-  stepText: {
+  moodDate: {
     fontSize: 12,
     color: Colors.textSecondary,
-    marginBottom: 6,
-    lineHeight: 16,
+    marginTop: 2,
   },
-  moreSteps: {
-    fontSize: 11,
+  moodMetrics: {
+    alignItems: 'flex-end',
+  },
+  moodMetric: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  moodReflection: {
+    fontSize: 14,
+    color: Colors.text,
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  gratitudeSection: {
+    backgroundColor: Colors.heartLight,
+    padding: 8,
+    borderRadius: 8,
+  },
+  gratitudeTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.heart,
+    marginBottom: 4,
+  },
+  gratitudeList: {
+    fontSize: 12,
+    color: Colors.text,
+  },
+
+  // Placeholder
+  placeholderContainer: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 40,
+    margin: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  placeholderTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  placeholderDescription: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  placeholderNote: {
+    fontSize: 12,
     color: Colors.heart,
     fontStyle: 'italic',
-    marginTop: 4,
+    textAlign: 'center',
+  },
+
+  // Modal Styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.text,
+  },
+  modalSave: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.heart,
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  modalSectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginBottom: 12,
+    marginTop: 20,
+  },
+
+  // Mood Selection
+  moodOptions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  moodOption: {
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    flex: 1,
+    marginHorizontal: 4,
+  },
+  moodOptionSelected: {
+    borderColor: Colors.heart,
+    backgroundColor: Colors.heartLight,
+  },
+  moodEmoji: {
+    fontSize: 24,
+    marginBottom: 8,
+  },
+  moodLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+
+  // Sliders - CORRECTED
+  sliderContainer: {
+    marginBottom: 20,
+  },
+  slider: {
+    height: 40,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 20,
+    justifyContent: 'center',
+  },
+  sliderFill: {
+    height: '100%',
+    backgroundColor: Colors.heart,
+    borderRadius: 20,
+  },
+
+  // Text Inputs
+  reflectionInput: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: Colors.text,
+    textAlignVertical: 'top',
+    minHeight: 120,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  gratitudeInput: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: Colors.text,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
 });
 
-export default React.memo(HeartScreen);
+export default HeartScreen;

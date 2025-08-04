@@ -1,24 +1,25 @@
-// src/screens/BodyScreen.tsx - COMPLETE ADVANCED BODY OPTIMIZATION SYSTEM
-import React, { useEffect, useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
+// src/screens/BodyScreen.tsx - COMPREHENSIVE FITNESS & CULTURAL WELLNESS
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
   ScrollView,
-  Platform,
+  TouchableOpacity,
   Animated,
-  Dimensions,
-  Alert
+  Platform,
+  Alert,
+  SafeAreaView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAppDataSelectors, useAppData } from '../context/AppDataContext';
-import { usePerformanceOptimization, PerformanceMonitor } from '../hooks/usePerformanceOptimization';
-import NotificationManager from '../utils/NotificationManager';
 
-const { width } = Dimensions.get('window');
+// Real Data Integration
+import { useAppData, useAppDataSelectors } from '../context/AppDataContext';
+
+// Components
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const Colors = {
   background: '#F8FAFC',
@@ -27,769 +28,1091 @@ const Colors = {
   textSecondary: '#6B7280',
   accent: '#3B82F6',
   success: '#10B981',
-  body: '#EF4444',
   warning: '#F59E0B',
-  spirit: '#8B5CF6',
+  danger: '#EF4444',
+  body: '#EF4444',
+  bodyLight: '#FEE2E2',
 };
 
-interface BiometricData {
-  heartRate: number;
-  steps: number;
-  calories: number;
-  sleep: number;
-  hydration: number;
-  recovery: number;
+interface Exercise {
+  id: string;
+  name: string;
+  sanskrit?: string;
+  duration: number; // minutes
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  type: 'yoga' | 'cardio' | 'strength' | 'flexibility';
+  description: string;
+  benefits: string[];
+  instructions: string[];
+  cultural: boolean;
 }
 
 interface WorkoutPlan {
   id: string;
   name: string;
-  type: 'strength' | 'cardio' | 'flexibility' | 'recovery';
-  duration: number;
-  intensity: 'low' | 'moderate' | 'high';
+  description: string;
   exercises: Exercise[];
-  aiRecommended: boolean;
-}
-
-interface Exercise {
-  name: string;
-  sets?: number;
-  reps?: number;
-  duration?: number;
-  restTime?: number;
-  targetMuscles: string[];
+  totalDuration: number;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
+  cultural: boolean;
 }
 
 const BodyScreen = () => {
   const navigation = useNavigation();
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const { actions } = useAppData();
-  const { pillarScores, userProfile } = useAppDataSelectors();
-  const { measurePerformance } = usePerformanceOptimization();
-  const notificationManager = NotificationManager.getInstance();
+  const { userProfile, pillarScores, sessions } = useAppDataSelectors();
+  
+  // Animation refs
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  
+  // State
+  const [activeWorkout, setActiveWorkout] = useState<WorkoutPlan | null>(null);
+  const [currentExercise, setCurrentExercise] = useState<Exercise | null>(null);
+  const [workoutTimer, setWorkoutTimer] = useState(0);
+  const [isWorkingOut, setIsWorkingOut] = useState(false);
+  const [selectedTab, setSelectedTab] = useState<'workouts' | 'yoga' | 'progress' | 'ayurveda'>('workouts');
 
-  // Advanced body optimization state
-  const [biometrics, setBiometrics] = useState<BiometricData>({
+  // Mock fitness data (replace with real sensor data)
+  const [fitnessMetrics] = useState({
+    steps: 8742,
+    calories: 324,
     heartRate: 72,
-    steps: 8420,
-    calories: 2150,
-    sleep: 7.5,
-    hydration: 6,
-    recovery: 85
+    workoutsThisWeek: 4,
+    totalWorkouts: sessions.filter(s => s.pillar === 'body').length,
   });
 
-  const [activeWorkout, setActiveWorkout] = useState<WorkoutPlan | null>(null);
-  const [workoutTimer, setWorkoutTimer] = useState(0);
-  const [isWorkoutActive, setIsWorkoutActive] = useState(false);
+  // Workout plans data
+  const workoutPlans: WorkoutPlan[] = [
+    {
+      id: 'surya-namaskara',
+      name: 'Surya Namaskara',
+      description: 'Traditional Sun Salutation sequence for complete body wellness',
+      totalDuration: 15,
+      difficulty: 'beginner',
+      cultural: true,
+      exercises: [
+        {
+          id: 'prayer-pose',
+          name: 'Prayer Pose',
+          sanskrit: 'प्रणामासन (Pranamasana)',
+          duration: 1,
+          difficulty: 'beginner',
+          type: 'yoga',
+          description: 'Stand with feet together, palms pressed together at heart center',
+          benefits: ['Centering', 'Focus', 'Grounding'],
+          instructions: [
+            'Stand tall with feet together',
+            'Bring palms together at heart center',
+            'Close eyes and take 3 deep breaths',
+            'Set intention for practice'
+          ],
+          cultural: true
+        },
+        {
+          id: 'raised-arms-pose',
+          name: 'Raised Arms Pose',
+          sanskrit: 'हस्तउत्तानासन (Hasta Uttanasana)',
+          duration: 1,
+          difficulty: 'beginner',
+          type: 'yoga',
+          description: 'Arms sweep up overhead, gentle backbend',
+          benefits: ['Chest opening', 'Energy activation', 'Spinal flexibility'],
+          instructions: [
+            'Inhale and sweep arms up overhead',
+            'Gently arch back, lifting chest',
+            'Keep feet grounded',
+            'Gaze upward'
+          ],
+          cultural: true
+        },
+        // Add more poses...
+      ]
+    },
+    {
+      id: 'cardio-burst',
+      name: 'Energy Burst Cardio',
+      description: 'High-intensity interval training for cardiovascular health',
+      totalDuration: 20,
+      difficulty: 'intermediate',
+      cultural: false,
+      exercises: [
+        {
+          id: 'jumping-jacks',
+          name: 'Jumping Jacks',
+          duration: 2,
+          difficulty: 'beginner',
+          type: 'cardio',
+          description: 'Classic full-body cardio movement',
+          benefits: ['Cardiovascular health', 'Coordination', 'Full body activation'],
+          instructions: [
+            'Start with feet together, arms at sides',
+            'Jump feet apart while raising arms overhead',
+            'Jump back to starting position',
+            'Maintain steady rhythm'
+          ],
+          cultural: false
+        },
+        // Add more exercises...
+      ]
+    },
+    {
+      id: 'strength-basics',
+      name: 'Foundation Strength',
+      description: 'Basic strength building exercises for beginners',
+      totalDuration: 25,
+      difficulty: 'beginner',
+      cultural: false,
+      exercises: [
+        {
+          id: 'pushups',
+          name: 'Push-ups',
+          duration: 3,
+          difficulty: 'beginner',
+          type: 'strength',
+          description: 'Upper body strength development',
+          benefits: ['Chest strength', 'Arm strength', 'Core stability'],
+          instructions: [
+            'Start in plank position',
+            'Lower body until chest nearly touches ground',
+            'Push back up to starting position',
+            'Maintain straight line from head to heels'
+          ],
+          cultural: false
+        },
+        // Add more exercises...
+      ]
+    }
+  ];
+
+  // Ayurvedic tips
+  const ayurvedicTips = [
+    {
+      id: 'morning-movement',
+      title: 'Morning Movement Ritual',
+      sanskrit: 'प्रातःकाल व्यायाम',
+      description: 'Begin each day with gentle movement to awaken the body\'s natural energy',
+      tips: [
+        'Practice yoga or stretching within 1 hour of waking',
+        'Face east during morning practice when possible',
+        'Start with 5-10 minutes and gradually increase',
+        'Listen to your body\'s natural rhythm'
+      ],
+      dosha: 'All doshas',
+      season: 'All seasons'
+    },
+    {
+      id: 'seasonal-exercise',
+      title: 'Seasonal Exercise Wisdom',
+      sanskrit: 'ऋतु व्यायाम',
+      description: 'Adapt your physical practice to align with natural seasonal rhythms',
+      tips: [
+        'Summer: Cool, gentle practices like swimming',
+        'Winter: Warming, vigorous practices like heated yoga',
+        'Monsoon: Indoor practices, avoid outdoor activities',
+        'Spring: Detoxifying movements, dynamic flows'
+      ],
+      dosha: 'Varies by season',
+      season: 'Seasonal adaptation'
+    }
+  ];
+
+  // Effects
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+    ]).start();
+  }, []);
 
   useEffect(() => {
-    const measurement = measurePerformance('BodyScreen');
-    
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: Platform.OS !== 'web',
-    }).start(() => {
-      measurement.end();
-    });
-
-    // Initialize advanced body features
-    initializeBodyOptimization();
-  }, [fadeAnim]);
-
-  const initializeBodyOptimization = async () => {
-    try {
-      // Generate AI-powered workout recommendations
-      generateAIWorkoutPlan();
-      
-      // Check for body pillar achievements
-      checkBodyAchievements();
-      
-      // Update biometric data (would integrate with health APIs)
-      updateBiometricData();
-      
-    } catch (error) {
-      console.error('Error initializing body optimization:', error);
+    let interval: NodeJS.Timeout | null = null;
+    if (isWorkingOut && workoutTimer > 0) {
+      interval = setInterval(() => {
+        setWorkoutTimer(timer => {
+          if (timer <= 1) {
+            handleExerciseComplete();
+            return 0;
+          }
+          return timer - 1;
+        });
+      }, 1000);
     }
-  };
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isWorkingOut, workoutTimer]);
 
-  const generateAIWorkoutPlan = () => {
-    const currentScore = pillarScores.body;
-    const userLevel = userProfile.level;
-    
-    // AI-generated workout plans based on current score and user level
-    const workoutPlans: WorkoutPlan[] = [
-      {
-        id: 'strength-focus',
-        name: 'AI Strength Optimization',
-        type: 'strength',
-        duration: 45,
-        intensity: currentScore > 80 ? 'high' : 'moderate',
-        aiRecommended: true,
-        exercises: [
-          {
-            name: 'Progressive Push-ups',
-            sets: userLevel >= 3 ? 4 : 3,
-            reps: Math.max(5, Math.floor(currentScore / 10)),
-            restTime: 60,
-            targetMuscles: ['chest', 'triceps', 'shoulders'],
-            difficulty: currentScore > 85 ? 'advanced' : 'intermediate'
-          },
-          {
-            name: 'Neural Squats',
-            sets: userLevel >= 2 ? 4 : 3,
-            reps: Math.max(8, Math.floor(currentScore / 8)),
-            restTime: 45,
-            targetMuscles: ['quadriceps', 'glutes', 'calves'],
-            difficulty: currentScore > 80 ? 'intermediate' : 'beginner'
-          },
-          {
-            name: 'Mind-Body Planks',
-            sets: 3,
-            duration: Math.max(30, currentScore / 2),
-            restTime: 30,
-            targetMuscles: ['core', 'shoulders'],
-            difficulty: currentScore > 85 ? 'advanced' : 'intermediate'
-          }
-        ]
-      },
-      {
-        id: 'cardio-optimization',
-        name: 'Neural Cardio Enhancement',
-        type: 'cardio',
-        duration: 30,
-        intensity: currentScore > 75 ? 'high' : 'moderate',
-        aiRecommended: currentScore < 85,
-        exercises: [
-          {
-            name: 'Interval Running',
-            duration: 20,
-            targetMuscles: ['legs', 'cardiovascular'],
-            difficulty: currentScore > 80 ? 'intermediate' : 'beginner'
-          },
-          {
-            name: 'HIIT Circuit',
-            sets: 4,
-            duration: 45,
-            restTime: 15,
-            targetMuscles: ['full-body'],
-            difficulty: 'intermediate'
-          }
-        ]
+  // Handlers
+  const handleGoBack = useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate('Home' as never);
+    }
+  }, [navigation]);
+
+  const handleStartWorkout = useCallback(async (workout: WorkoutPlan) => {
+    setActiveWorkout(workout);
+    if (workout.exercises.length > 0) {
+      setCurrentExercise(workout.exercises[0]);
+      setWorkoutTimer(workout.exercises[0].duration * 60); // Convert to seconds
+      setIsWorkingOut(true);
+      
+      // Add session start
+      await actions.addSession({
+        pillar: 'body',
+        type: 'exercise',
+        duration: 0, // Will update on completion
+        date: new Date().toISOString(),
+        score: 0, // Will update on completion
+        mood: 'good',
+        notes: `Started ${workout.name} workout`
+      });
+    }
+  }, [actions]);
+
+  const handleExerciseComplete = useCallback(async () => {
+    if (!activeWorkout || !currentExercise) return;
+
+    const currentIndex = activeWorkout.exercises.findIndex(e => e.id === currentExercise.id);
+    const nextIndex = currentIndex + 1;
+
+    if (nextIndex < activeWorkout.exercises.length) {
+      // Move to next exercise
+      const nextExercise = activeWorkout.exercises[nextIndex];
+      setCurrentExercise(nextExercise);
+      setWorkoutTimer(nextExercise.duration * 60);
+    } else {
+      // Workout complete
+      setIsWorkingOut(false);
+      setActiveWorkout(null);
+      setCurrentExercise(null);
+      setWorkoutTimer(0);
+
+      // Add completion session
+      await actions.addSession({
+        pillar: 'body',
+        type: 'exercise',
+        duration: activeWorkout.totalDuration,
+        date: new Date().toISOString(),
+        score: Math.floor(Math.random() * 20) + 80, // 80-100 score
+        mood: 'excellent',
+        notes: `Completed ${activeWorkout.name} workout`
+      });
+
+      // Check for achievements
+      const bodySessionsCount = sessions.filter(s => s.pillar === 'body').length + 1;
+      if (bodySessionsCount === 1) {
+        await actions.addAchievement({
+          title: '💪 First Workout',
+          description: 'Completed your first body practice session',
+          pillar: 'body',
+          rarity: 'common'
+        });
+      } else if (bodySessionsCount === 10) {
+        await actions.addAchievement({
+          title: '🏃‍♂️ Fitness Enthusiast',
+          description: 'Completed 10 body practice sessions',
+          pillar: 'body',
+          rarity: 'rare'
+        });
       }
-    ];
 
-    setActiveWorkout(workoutPlans[0]); // Set AI-recommended workout
-  };
+      if (activeWorkout.cultural) {
+        await actions.addAchievement({
+          title: '🕉️ Cultural Warrior',
+          description: 'Completed a traditional Indian fitness practice',
+          pillar: 'body',
+          rarity: 'rare'
+        });
+      }
 
-  const checkBodyAchievements = async () => {
-    const achievements = [];
-    
-    if (pillarScores.body >= 90) {
-      achievements.push('Physical Excellence Master');
+      Alert.alert(
+        '🎉 Workout Complete!',
+        `Excellent work! You completed ${activeWorkout.name}. Your body pillar score has increased.`,
+        [{ text: 'Amazing!', style: 'default' }]
+      );
     }
-    
-    if (biometrics.steps >= 10000) {
-      achievements.push('10K Steps Champion');
-    }
-    
-    if (biometrics.recovery >= 90) {
-      achievements.push('Recovery Optimization Expert');
-    }
+  }, [activeWorkout, currentExercise, actions, sessions]);
 
-    // Notify achievements
-    for (const achievement of achievements) {
-      await notificationManager.scheduleAchievementNotification(achievement, 'body');
-    }
-  };
-
-  const updateBiometricData = () => {
-    // Simulate real biometric data updates
-    setBiometrics(prev => ({
-      ...prev,
-      heartRate: 70 + Math.floor(Math.random() * 10),
-      steps: prev.steps + Math.floor(Math.random() * 100),
-      calories: prev.calories + Math.floor(Math.random() * 50),
-      recovery: Math.max(75, Math.min(95, prev.recovery + (Math.random() - 0.5) * 5))
-    }));
-  };
-
-  const startWorkout = () => {
-    if (!activeWorkout) return;
-    
-    setIsWorkoutActive(true);
-    setWorkoutTimer(0);
-    
-    // Start workout timer
-    const timer = setInterval(() => {
-      setWorkoutTimer(prev => prev + 1);
-    }, 1000);
-
-    // Schedule workout completion notification
-    setTimeout(() => {
-      clearInterval(timer);
-      completeWorkout();
-    }, activeWorkout.duration * 60 * 1000);
-
+  const handleStopWorkout = useCallback(() => {
     Alert.alert(
-      '🏋️ Workout Started!',
-      `Beginning ${activeWorkout.name}. Stay focused and optimize your body!`,
-      [{ text: 'Let\'s Go!', style: 'default' }]
+      'Stop Workout?',
+      'Are you sure you want to stop the current workout?',
+      [
+        { text: 'Continue', style: 'cancel' },
+        {
+          text: 'Stop',
+          style: 'destructive',
+          onPress: () => {
+            setIsWorkingOut(false);
+            setActiveWorkout(null);
+            setCurrentExercise(null);
+            setWorkoutTimer(0);
+          }
+        }
+      ]
     );
-  };
+  }, []);
 
-  const completeWorkout = async () => {
-    if (!activeWorkout) return;
-
-    setIsWorkoutActive(false);
-    
-    // Update body pillar score
-    const improvement = Math.floor(Math.random() * 5) + 2;
-    const newScore = Math.min(100, pillarScores.body + improvement);
-    actions.updatePillarScore('body', newScore);
-
-    // Update session data
-    actions.addSession({
-      pillar: 'body',
-      duration: Math.floor(workoutTimer / 60),
-      improvement: improvement
-    });
-
-    // Schedule achievement notification
-    await notificationManager.scheduleAchievementNotification(
-      `Workout Complete: +${improvement}% Body Optimization`,
-      'body'
-    );
-
-    Alert.alert(
-      '🎉 Workout Completed!',
-      `Fantastic work! Your body pillar improved by ${improvement}%. Your dedication to physical optimization is inspiring!`,
-      [{ text: 'Amazing!', style: 'default' }]
-    );
-  };
-
-  const renderBiometricDashboard = () => (
-    <PerformanceMonitor>
-      <View style={styles.biometricDashboard}>
-        <Text style={styles.sectionTitle}>Real-Time Biometrics</Text>
-        
-        <View style={styles.biometricGrid}>
-          {[
-            { label: 'Heart Rate', value: `${biometrics.heartRate}`, unit: 'bpm', icon: 'heart', color: Colors.body },
-            { label: 'Steps', value: biometrics.steps.toLocaleString(), unit: '', icon: 'footsteps', color: Colors.success },
-            { label: 'Sleep', value: `${biometrics.sleep}`, unit: 'hrs', icon: 'bed', color: Colors.spirit },
-            { label: 'Recovery', value: `${biometrics.recovery}`, unit: '%', icon: 'refresh', color: Colors.accent }
-          ].map((metric, index) => (
-            <View key={index} style={styles.biometricCard}>
-              <View style={[styles.biometricIcon, { backgroundColor: metric.color }]}>
-                <Ionicons name={metric.icon as any} size={20} color="#FFFFFF" />
-              </View>
-              <Text style={styles.biometricLabel}>{metric.label}</Text>
-              <Text style={styles.biometricValue}>
-                {metric.value}<Text style={styles.biometricUnit}>{metric.unit}</Text>
-              </Text>
-            </View>
-          ))}
-        </View>
+  // Render functions
+  const renderHeader = () => (
+    <LinearGradient
+      colors={[Colors.body, '#DC2626']}
+      style={styles.header}
+    >
+      <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
+        <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+      </TouchableOpacity>
+      
+      <View style={styles.headerContent}>
+        <Text style={styles.headerTitle}>Body Pillar</Text>
+        <Text style={styles.headerSubtitle}>Physical Wellness • शारीरिक कल्याण</Text>
       </View>
-    </PerformanceMonitor>
+
+      <View style={styles.headerScore}>
+        <Text style={styles.headerScoreValue}>{Math.round(pillarScores.body || 0)}%</Text>
+      </View>
+    </LinearGradient>
   );
 
-  const renderAIWorkoutPlan = () => (
-    <PerformanceMonitor>
-      <View style={styles.workoutSection}>
-        <View style={styles.workoutHeader}>
-          <Text style={styles.sectionTitle}>AI-Optimized Workout</Text>
-          {activeWorkout?.aiRecommended && (
-            <View style={styles.aiRecommendedBadge}>
-              <Ionicons name="flash" size={12} color="#FFFFFF" />
-              <Text style={styles.aiRecommendedText}>AI Recommended</Text>
-            </View>
-          )}
-        </View>
-
-        {activeWorkout && (
-          <View style={styles.workoutCard}>
-            <LinearGradient
-              colors={[Colors.body, '#FF6B6B']}
-              style={styles.workoutGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            >
-              <View style={styles.workoutInfo}>
-                <Text style={styles.workoutName}>{activeWorkout.name}</Text>
-                <Text style={styles.workoutDetails}>
-                  {activeWorkout.duration} min • {activeWorkout.intensity.toUpperCase()} intensity
-                </Text>
-                <Text style={styles.workoutType}>
-                  {activeWorkout.type.toUpperCase()} FOCUS
-                </Text>
-              </View>
-
-              {isWorkoutActive ? (
-                <View style={styles.workoutTimer}>
-                  <Text style={styles.timerText}>
-                    {Math.floor(workoutTimer / 60)}:{(workoutTimer % 60).toString().padStart(2, '0')}
-                  </Text>
-                  <Text style={styles.timerLabel}>Active</Text>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={styles.startWorkoutButton}
-                  onPress={startWorkout}
-                >
-                  <Ionicons name="play" size={24} color="#FFFFFF" />
-                  <Text style={styles.startWorkoutText}>Start</Text>
-                </TouchableOpacity>
-              )}
-            </LinearGradient>
-
-            {/* Exercise Preview */}
-            <View style={styles.exercisePreview}>
-              <Text style={styles.exercisePreviewTitle}>Exercise Preview:</Text>
-              {activeWorkout.exercises.slice(0, 2).map((exercise, index) => (
-                <View key={index} style={styles.exerciseItem}>
-                  <Text style={styles.exerciseName}>{exercise.name}</Text>
-                  <Text style={styles.exerciseDetails}>
-                    {exercise.sets ? `${exercise.sets} sets × ${exercise.reps} reps` : 
-                     `${exercise.duration}s duration`}
-                  </Text>
-                </View>
-              ))}
-              {activeWorkout.exercises.length > 2 && (
-                <Text style={styles.moreExercises}>
-                  +{activeWorkout.exercises.length - 2} more exercises
-                </Text>
-              )}
-            </View>
-          </View>
-        )}
-      </View>
-    </PerformanceMonitor>
-  );
-
-  const renderBodyOptimizationScore = () => (
-    <PerformanceMonitor>
-      <View style={styles.scoreSection}>
-        <LinearGradient
-          colors={[Colors.body, '#FF8A80']}
-          style={styles.scoreGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+  const renderTabBar = () => (
+    <View style={styles.tabBar}>
+      {[
+        { key: 'workouts', label: 'Workouts', icon: 'fitness' },
+        { key: 'yoga', label: 'Yoga', icon: 'leaf' },
+        { key: 'progress', label: 'Progress', icon: 'analytics' },
+        { key: 'ayurveda', label: 'Ayurveda', icon: 'medical' }
+      ].map(tab => (
+        <TouchableOpacity
+          key={tab.key}
+          style={[styles.tab, selectedTab === tab.key && styles.tabActive]}
+          onPress={() => setSelectedTab(tab.key as any)}
         >
-          <View style={styles.scoreHeader}>
-            <Ionicons name="fitness" size={32} color="#FFFFFF" />
-            <Text style={styles.scoreTitle}>Body Optimization</Text>
+          <Ionicons 
+            name={tab.icon as any} 
+            size={20} 
+            color={selectedTab === tab.key ? Colors.body : Colors.textSecondary} 
+          />
+          <Text style={[
+            styles.tabLabel,
+            selectedTab === tab.key && styles.tabLabelActive
+          ]}>
+            {tab.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  const renderActiveWorkout = () => {
+    if (!isWorkingOut || !currentExercise) return null;
+
+    const minutes = Math.floor(workoutTimer / 60);
+    const seconds = workoutTimer % 60;
+
+    return (
+      <View style={styles.activeWorkoutContainer}>
+        <LinearGradient
+          colors={[Colors.body, '#DC2626']}
+          style={styles.activeWorkoutCard}
+        >
+          <View style={styles.activeWorkoutHeader}>
+            <Text style={styles.activeWorkoutTitle}>{currentExercise.name}</Text>
+            {currentExercise.sanskrit && (
+              <Text style={styles.activeWorkoutSanskrit}>{currentExercise.sanskrit}</Text>
+            )}
+            <TouchableOpacity style={styles.stopButton} onPress={handleStopWorkout}>
+              <Ionicons name="stop" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
           </View>
-          <Text style={styles.scoreValue}>{pillarScores.body}%</Text>
-          <Text style={styles.scoreSubtitle}>Physical Excellence Level</Text>
-          
-          {/* AI Improvement Prediction */}
-          <View style={styles.aiPrediction}>
-            <Ionicons name="trending-up" size={16} color="rgba(255,255,255,0.8)" />
-            <Text style={styles.aiPredictionText}>
-              AI predicts +{Math.floor(Math.random() * 8) + 2}% improvement this week
+
+          <View style={styles.timerContainer}>
+            <Text style={styles.timerText}>
+              {minutes.toString().padStart(2, '0')}:{seconds.toString().padStart(2, '0')}
             </Text>
           </View>
 
-          {/* Quick Stats */}
-          <View style={styles.quickStats}>
-            <View style={styles.quickStat}>
-              <Text style={styles.quickStatValue}>{userProfile.totalSessions}</Text>
-              <Text style={styles.quickStatLabel}>Total Workouts</Text>
-            </View>
-            <View style={styles.quickStat}>
-              <Text style={styles.quickStatValue}>{biometrics.calories}</Text>
-              <Text style={styles.quickStatLabel}>Calories Today</Text>
-            </View>
-          </View>
+          <Text style={styles.exerciseDescription}>
+            {currentExercise.description}
+          </Text>
+
+          <TouchableOpacity 
+            style={styles.completeButton} 
+            onPress={handleExerciseComplete}
+          >
+            <Text style={styles.completeButtonText}>Complete Exercise</Text>
+          </TouchableOpacity>
         </LinearGradient>
       </View>
-    </PerformanceMonitor>
-  );
+    );
+  };
 
-  const renderAdvancedFeatures = () => (
-    <PerformanceMonitor>
-      <View style={styles.advancedFeaturesSection}>
-        <Text style={styles.sectionTitle}>Advanced Body Features</Text>
-        
-        <View style={styles.featuresGrid}>
-          <TouchableOpacity 
-            style={styles.featureCard}
-            onPress={() => Alert.alert('🔬 Body Composition Analysis', 'AI analyzing your body composition patterns...')}
-          >
-            <Ionicons name="analytics" size={24} color={Colors.body} />
-            <Text style={styles.featureTitle}>Body Composition</Text>
-            <Text style={styles.featureSubtitle}>AI Analysis</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.featureCard}
-            onPress={() => Alert.alert('💪 Strength Tracking', 'Progressive strength monitoring activated...')}
-          >
-            <Ionicons name="barbell" size={24} color={Colors.success} />
-            <Text style={styles.featureTitle}>Strength Tracker</Text>
-            <Text style={styles.featureSubtitle}>Progressive Load</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.featureCard}
-            onPress={() => Alert.alert('🔄 Recovery Optimization', 'Advanced recovery protocols loading...')}
-          >
-            <Ionicons name="refresh-circle" size={24} color={Colors.accent} />
-            <Text style={styles.featureTitle}>Recovery AI</Text>
-            <Text style={styles.featureSubtitle}>Smart Rest</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.featureCard}
-            onPress={() => Alert.alert('📊 Performance Metrics', 'Comprehensive performance dashboard opening...')}
-          >
-            <Ionicons name="speedometer" size={24} color={Colors.warning} />
-            <Text style={styles.featureTitle}>Performance</Text>
-            <Text style={styles.featureSubtitle}>Metrics Dashboard</Text>
-          </TouchableOpacity>
+  const renderFitnessMetrics = () => (
+    <View style={styles.metricsContainer}>
+      <Text style={styles.sectionTitle}>Today's Metrics</Text>
+      <View style={styles.metricsGrid}>
+        <View style={styles.metricCard}>
+          <Ionicons name="walk" size={24} color={Colors.success} />
+          <Text style={styles.metricValue}>{fitnessMetrics.steps.toLocaleString()}</Text>
+          <Text style={styles.metricLabel}>Steps</Text>
+        </View>
+        <View style={styles.metricCard}>
+          <Ionicons name="flame" size={24} color={Colors.warning} />
+          <Text style={styles.metricValue}>{fitnessMetrics.calories}</Text>
+          <Text style={styles.metricLabel}>Calories</Text>
+        </View>
+        <View style={styles.metricCard}>
+          <Ionicons name="heart" size={24} color={Colors.danger} />
+          <Text style={styles.metricValue}>{fitnessMetrics.heartRate}</Text>
+          <Text style={styles.metricLabel}>BPM</Text>
+        </View>
+        <View style={styles.metricCard}>
+          <Ionicons name="trophy" size={24} color={Colors.body} />
+          <Text style={styles.metricValue}>{fitnessMetrics.workoutsThisWeek}</Text>
+          <Text style={styles.metricLabel}>This Week</Text>
         </View>
       </View>
-    </PerformanceMonitor>
+    </View>
   );
+
+  const renderWorkoutPlans = () => (
+    <View style={styles.workoutPlansContainer}>
+      <Text style={styles.sectionTitle}>Workout Plans</Text>
+      {workoutPlans.map(plan => (
+        <TouchableOpacity
+          key={plan.id}
+          style={styles.workoutPlanCard}
+          onPress={() => handleStartWorkout(plan)}
+          disabled={isWorkingOut}
+        >
+          <View style={styles.workoutPlanHeader}>
+            <View style={styles.workoutPlanInfo}>
+              <Text style={styles.workoutPlanName}>{plan.name}</Text>
+              <Text style={styles.workoutPlanDescription}>{plan.description}</Text>
+            </View>
+            <View style={styles.workoutPlanMeta}>
+              <Text style={styles.workoutPlanDuration}>{plan.totalDuration}min</Text>
+              <Text style={styles.workoutPlanDifficulty}>
+                {plan.difficulty.charAt(0).toUpperCase() + plan.difficulty.slice(1)}
+              </Text>
+              {plan.cultural && <Text style={styles.culturalBadge}>Cultural</Text>}
+            </View>
+          </View>
+          <View style={styles.workoutPlanFooter}>
+            <Text style={styles.exerciseCount}>
+              {plan.exercises.length} exercises
+            </Text>
+            <Ionicons name="play-circle" size={24} color={Colors.body} />
+          </View>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  const renderYogaSection = () => (
+    <View style={styles.yogaContainer}>
+      <Text style={styles.sectionTitle}>Traditional Yoga Practices</Text>
+      <Text style={styles.sectionSubtitle}>योग • Ancient wisdom for modern wellness</Text>
+      
+      {workoutPlans.filter(plan => plan.cultural).map(plan => (
+        <View key={plan.id} style={styles.yogaCard}>
+          <LinearGradient
+            colors={[Colors.spirit + '20', Colors.spirit + '10']}
+            style={styles.yogaCardGradient}
+          >
+            <View style={styles.yogaCardHeader}>
+              <Text style={styles.yogaCardTitle}>{plan.name}</Text>
+              <Text style={styles.yogaCardSubtitle}>Traditional Practice</Text>
+            </View>
+            <Text style={styles.yogaCardDescription}>{plan.description}</Text>
+            <View style={styles.yogaCardFooter}>
+              <Text style={styles.yogaDuration}>{plan.totalDuration} minutes</Text>
+              <TouchableOpacity 
+                style={styles.startYogaButton}
+                onPress={() => handleStartWorkout(plan)}
+                disabled={isWorkingOut}
+              >
+                <Text style={styles.startYogaButtonText}>Begin Practice</Text>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
+        </View>
+      ))}
+    </View>
+  );
+
+  const renderProgressSection = () => (
+    <View style={styles.progressContainer}>
+      <Text style={styles.sectionTitle}>Your Progress</Text>
+      
+      <View style={styles.progressCard}>
+        <Text style={styles.progressCardTitle}>Body Pillar Score</Text>
+        <View style={styles.progressBarContainer}>
+          <View style={styles.progressBar}>
+            <View 
+              style={[
+                styles.progressBarFill, 
+                { width: `${Math.min(pillarScores.body || 0, 100)}%` }
+              ]} 
+            />
+          </View>
+          <Text style={styles.progressScore}>{Math.round(pillarScores.body || 0)}%</Text>
+        </View>
+      </View>
+
+      <View style={styles.statsGrid}>
+        <View style={styles.statCard}>
+          <Text style={styles.statNumber}>{fitnessMetrics.totalWorkouts}</Text>
+          <Text style={styles.statLabel}>Total Workouts</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statNumber}>{fitnessMetrics.workoutsThisWeek}</Text>
+          <Text style={styles.statLabel}>This Week</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statNumber}>
+            {sessions.filter(s => s.pillar === 'body' && s.type === 'exercise').length}
+          </Text>
+          <Text style={styles.statLabel}>Sessions</Text>
+        </View>
+      </View>
+    </View>
+  );
+
+  const renderAyurvedaSection = () => (
+    <View style={styles.ayurvedaContainer}>
+      <Text style={styles.sectionTitle}>Ayurvedic Wellness</Text>
+      <Text style={styles.sectionSubtitle}>आयुर्वेद • Ancient health wisdom</Text>
+      
+      {ayurvedicTips.map(tip => (
+        <View key={tip.id} style={styles.ayurvedaTipCard}>
+          <View style={styles.ayurvedaTipHeader}>
+            <Text style={styles.ayurvedaTipTitle}>{tip.title}</Text>
+            <Text style={styles.ayurvedaTipSanskrit}>{tip.sanskrit}</Text>
+          </View>
+          <Text style={styles.ayurvedaTipDescription}>{tip.description}</Text>
+          <View style={styles.ayurvedaTipsList}>
+            {tip.tips.map((tipText, index) => (
+              <View key={index} style={styles.ayurvedaTipItem}>
+                <Ionicons name="leaf" size={12} color={Colors.success} />
+                <Text style={styles.ayurvedaTipText}>{tipText}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={styles.ayurvedaTipFooter}>
+            <Text style={styles.ayurvedaDosha}>Dosha: {tip.dosha}</Text>
+            <Text style={styles.ayurvedaSeason}>Season: {tip.season}</Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+
+  const renderTabContent = () => {
+    switch (selectedTab) {
+      case 'workouts':
+        return (
+          <>
+            {renderFitnessMetrics()}
+            {renderWorkoutPlans()}
+          </>
+        );
+      case 'yoga':
+        return renderYogaSection();
+      case 'progress':
+        return renderProgressSection();
+      case 'ayurveda':
+        return renderAyurvedaSection();
+      default:
+        return renderWorkoutPlans();
+    }
+  };
 
   return (
-    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
-        </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Body Optimization</Text>
-          <Text style={styles.headerSubtitle}>Advanced Physical Enhancement</Text>
-        </View>
-        <TouchableOpacity style={styles.settingsButton}>
-          <Ionicons name="settings" size={20} color={Colors.body} />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {renderBodyOptimizationScore()}
-        {renderBiometricDashboard()}
-        {renderAIWorkoutPlan()}
-        {renderAdvancedFeatures()}
-      </ScrollView>
-    </Animated.View>
+    <ErrorBoundary>
+      <SafeAreaView style={styles.container}>
+        <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+          {renderHeader()}
+          {renderActiveWorkout()}
+          {renderTabBar()}
+          <ScrollView 
+            style={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContentContainer}
+          >
+            {renderTabContent()}
+          </ScrollView>
+        </Animated.View>
+      </SafeAreaView>
+    </ErrorBoundary>
   );
 };
 
+// Comprehensive styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-    paddingTop: Platform.OS === 'android' ? 25 : 0,
+  },
+  content: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    paddingVertical: 16,
+    paddingTop: Platform.OS === 'android' ? 40 : 16,
   },
   backButton: {
     padding: 8,
-    marginRight: 12,
+    marginRight: 16,
   },
   headerContent: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.text,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  settingsButton: {
-    padding: 8,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 100,
-  },
-  scoreSection: {
-    marginHorizontal: 20,
-    marginTop: 16,
-    marginBottom: 24,
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  scoreGradient: {
-    padding: 24,
-    alignItems: 'center',
-  },
-  scoreHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  scoreTitle: {
-    fontSize: 18,
-    color: 'rgba(255,255,255,0.9)',
-    marginLeft: 8,
-    fontWeight: 'bold',
-  },
-  scoreValue: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  scoreSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-    marginBottom: 16,
-  },
-  aiPrediction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  aiPredictionText: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
-    marginLeft: 4,
-    fontStyle: 'italic',
-  },
-  quickStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-  },
-  quickStat: {
-    alignItems: 'center',
-  },
-  quickStatValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  quickStatLabel: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 2,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Colors.text,
-    marginBottom: 16,
-  },
-  biometricDashboard: {
-    marginHorizontal: 20,
-    marginBottom: 24,
-  },
-  biometricGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  biometricCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    width: (width - 56) / 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  biometricIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  biometricLabel: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginBottom: 4,
-  },
-  biometricValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Colors.text,
-  },
-  biometricUnit: {
-    fontSize: 12,
-    fontWeight: 'normal',
-    color: Colors.textSecondary,
-  },
-  workoutSection: {
-    marginHorizontal: 20,
-    marginBottom: 24,
-  },
-  workoutHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  aiRecommendedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.body,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  aiRecommendedText: {
-    fontSize: 10,
-    color: '#FFFFFF',
-    marginLeft: 2,
-    fontWeight: '600',
-  },
-  workoutCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  workoutGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 20,
-  },
-  workoutInfo: {
-    flex: 1,
-  },
-  workoutName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  workoutDetails: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 4,
-  },
-  workoutType: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.7)',
-    marginTop: 2,
-    fontWeight: '600',
-  },
-  startWorkoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  startWorkoutText: {
-    color: '#FFFFFF',
-    marginLeft: 4,
-    fontWeight: '600',
-  },
-  workoutTimer: {
-    alignItems: 'center',
-  },
-  timerText: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#FFFFFF',
   },
-  timerLabel: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
-  },
-  exercisePreview: {
-    padding: 16,
-  },
-  exercisePreviewTitle: {
+  headerSubtitle: {
     fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
+  },
+  headerScore: {
+    alignItems: 'center',
+  },
+  headerScoreValue: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  
+  // Active Workout
+  activeWorkoutContainer: {
+    marginHorizontal: 20,
+    marginVertical: 16,
+  },
+  activeWorkoutCard: {
+    borderRadius: 16,
+    padding: 20,
+  },
+  activeWorkoutHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  activeWorkoutTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    flex: 1,
+  },
+  activeWorkoutSanskrit: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 4,
+  },
+  stopButton: {
+    padding: 8,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 8,
+  },
+  timerContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  timerText: {
+    fontSize: 48,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  exerciseDescription: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.9)',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  completeButton: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignSelf: 'center',
+  },
+  completeButtonText: {
+    fontSize: 16,
     fontWeight: '600',
+    color: '#FFFFFF',
+  },
+
+  // Tab Bar
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    marginHorizontal: 20,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    gap: 6,
+  },
+  tabActive: {
+    backgroundColor: Colors.bodyLight,
+  },
+  tabLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  tabLabelActive: {
+    color: Colors.body,
+  },
+
+  // Scroll Content
+  scrollContent: {
+    flex: 1,
+  },
+  scrollContentContainer: {
+    paddingBottom: 100,
+  },
+
+  // Sections
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
     color: Colors.text,
     marginBottom: 8,
   },
-  exerciseItem: {
-    marginBottom: 6,
-  },
-  exerciseName: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: Colors.text,
-  },
-  exerciseDetails: {
-    fontSize: 11,
+  sectionSubtitle: {
+    fontSize: 14,
     color: Colors.textSecondary,
+    marginBottom: 16,
   },
-  moreExercises: {
-    fontSize: 11,
-    color: Colors.accent,
-    fontStyle: 'italic',
-    marginTop: 4,
-  },
-  advancedFeaturesSection: {
+
+  // Fitness Metrics
+  metricsContainer: {
     marginHorizontal: 20,
-    marginBottom: 32,
+    marginBottom: 24,
   },
-  featuresGrid: {
+  metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
   },
-  featureCard: {
+  metricCard: {
+    flex: 1,
+    minWidth: '45%',
     backgroundColor: Colors.surface,
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
-    width: (width - 56) / 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     elevation: 4,
   },
-  featureTitle: {
-    fontSize: 13,
-    fontWeight: '600',
+  metricValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
     color: Colors.text,
-    marginTop: 8,
-    textAlign: 'center',
+    marginVertical: 8,
   },
-  featureSubtitle: {
-    fontSize: 11,
+  metricLabel: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+
+  // Workout Plans
+  workoutPlansContainer: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+  },
+  workoutPlanCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  workoutPlanHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  workoutPlanInfo: {
+    flex: 1,
+    marginRight: 16,
+  },
+  workoutPlanName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  workoutPlanDescription: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+  },
+  workoutPlanMeta: {
+    alignItems: 'flex-end',
+  },
+  workoutPlanDuration: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.body,
+  },
+  workoutPlanDifficulty: {
+    fontSize: 12,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  culturalBadge: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: Colors.spirit,
+    backgroundColor: Colors.spirit + '20',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  workoutPlanFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  exerciseCount: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+
+  // Yoga Section
+  yogaContainer: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+  },
+  yogaCard: {
+    marginBottom: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  yogaCardGradient: {
+    padding: 20,
+  },
+  yogaCardHeader: {
+    marginBottom: 12,
+  },
+  yogaCardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.text,
+  },
+  yogaCardSubtitle: {
+    fontSize: 12,
+    color: Colors.spirit,
+    marginTop: 2,
+  },
+  yogaCardDescription: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  yogaCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  yogaDuration: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+  },
+  startYogaButton: {
+    backgroundColor: Colors.spirit,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  startYogaButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+
+  // Progress Section
+  progressContainer: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+  },
+  progressCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  progressCardTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginBottom: 12,
+  },
+  progressBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  progressBar: {
+    flex: 1,
+    height: 8,
+    backgroundColor: Colors.bodyLight,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: Colors.body,
+    borderRadius: 4,
+  },
+  progressScore: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.body,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: Colors.body,
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: Colors.textSecondary,
     textAlign: 'center',
+  },
+
+  // Ayurveda Section
+  ayurvedaContainer: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+  },
+  ayurvedaTipCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  ayurvedaTipHeader: {
+    marginBottom: 12,
+  },
+  ayurvedaTipTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.text,
+  },
+  ayurvedaTipSanskrit: {
+    fontSize: 14,
+    color: Colors.success,
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
+  ayurvedaTipDescription: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  ayurvedaTipsList: {
+    marginBottom: 16,
+  },
+  ayurvedaTipItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+    gap: 8,
+  },
+  ayurvedaTipText: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.text,
+    lineHeight: 18,
+  },
+  ayurvedaTipFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  ayurvedaDosha: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  ayurvedaSeason: {
+    fontSize: 12,
+    color: Colors.textSecondary,
   },
 });
 
-export default React.memo(BodyScreen);
+export default BodyScreen;

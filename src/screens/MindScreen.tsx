@@ -1,22 +1,26 @@
-// src/screens/MindScreen.tsx - COMPLETE ADVANCED COGNITIVE OPTIMIZATION SYSTEM
-import React, { useEffect, useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
+// src/screens/MindScreen.tsx - COMPREHENSIVE COGNITIVE TRAINING & MENTAL WELLNESS
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
   ScrollView,
-  Platform,
+  TouchableOpacity,
   Animated,
+  Platform,
+  Alert,
+  SafeAreaView,
   Dimensions,
-  Alert
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAppDataSelectors, useAppData } from '../context/AppDataContext';
-import { usePerformanceOptimization, PerformanceMonitor } from '../hooks/usePerformanceOptimization';
-import NotificationManager from '../utils/NotificationManager';
+
+// Real Data Integration
+import { useAppData, useAppDataSelectors } from '../context/AppDataContext';
+
+// Components
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const { width } = Dimensions.get('window');
 
@@ -27,550 +31,928 @@ const Colors = {
   textSecondary: '#6B7280',
   accent: '#3B82F6',
   success: '#10B981',
-  mind: '#3B82F6',
   warning: '#F59E0B',
+  danger: '#EF4444',
+  mind: '#3B82F6',
+  mindLight: '#EBF4FF',
   spirit: '#8B5CF6',
 };
 
-interface CognitiveMetrics {
-  focusLevel: number;
-  memoryScore: number;
-  processingSpeed: number;
-  creativity: number;
-  mentalClarity: number;
-  neuroplasticity: number;
+interface MemoryGame {
+  id: string;
+  sequence: number[];
+  userSequence: number[];
+  currentStep: number;
+  isPlaying: boolean;
+  isUserTurn: boolean;
+  score: number;
+  level: number;
 }
 
-interface BrainTrainingModule {
+interface FocusSession {
   id: string;
-  name: string;
-  type: 'memory' | 'focus' | 'speed' | 'creativity' | 'logic';
-  duration: number;
-  difficulty: 'beginner' | 'intermediate' | 'advanced' | 'expert';
-  exercises: CognitiveExercise[];
-  aiOptimized: boolean;
-  neuralBenefit: string;
+  type: 'pomodoro' | 'meditation' | 'breathing' | 'concentration';
+  duration: number; // minutes
+  timeRemaining: number; // seconds
+  isActive: boolean;
+  completedCycles: number;
+  targetCycles: number;
 }
 
 interface CognitiveExercise {
+  id: string;
   name: string;
+  sanskrit?: string;
   description: string;
-  targetArea: string[];
-  estimatedTime: number;
-  cognitiveLoad: 'low' | 'medium' | 'high';
+  type: 'memory' | 'attention' | 'processing' | 'flexibility';
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  duration: number;
+  benefits: string[];
+  cultural: boolean;
+}
+
+interface MentalWellnessContent {
+  id: string;
+  title: string;
+  sanskrit?: string;
+  type: 'meditation' | 'mantra' | 'breathing' | 'wisdom';
+  duration: number;
+  description: string;
+  content: string[];
+  benefits: string[];
 }
 
 const MindScreen = () => {
   const navigation = useNavigation();
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const { actions } = useAppData();
-  const { pillarScores, userProfile } = useAppDataSelectors();
-  const { measurePerformance } = usePerformanceOptimization();
-  const notificationManager = NotificationManager.getInstance();
+  const { userProfile, pillarScores, sessions } = useAppDataSelectors();
+  
+  // Animation refs
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  
+  // State
+  const [selectedTab, setSelectedTab] = useState<'training' | 'focus' | 'games' | 'wisdom'>('training');
+  const [memoryGame, setMemoryGame] = useState<MemoryGame | null>(null);
+  const [focusSession, setFocusSession] = useState<FocusSession | null>(null);
+  const [showingSequence, setShowingSequence] = useState(false);
 
-  const [cognitiveMetrics, setCognitiveMetrics] = useState<CognitiveMetrics>({
-    focusLevel: 85,
-    memoryScore: 78,
-    processingSpeed: 82,
-    creativity: 88,
-    mentalClarity: 80,
-    neuroplasticity: 75
+  // Mock cognitive metrics
+  const [cognitiveMetrics] = useState({
+    focusScore: 78,
+    memoryScore: 82,
+    attentionSpan: 15, // minutes
+    sessionsToday: sessions.filter(s => s.pillar === 'mind' && 
+      new Date(s.date).toDateString() === new Date().toDateString()).length,
+    totalMindSessions: sessions.filter(s => s.pillar === 'mind').length,
+    longestFocusStreak: 45, // minutes
   });
 
-  const [activeBrainTraining, setActiveBrainTraining] = useState<BrainTrainingModule | null>(null);
-  const [trainingTimer, setTrainingTimer] = useState(0);
-  const [isTrainingActive, setIsTrainingActive] = useState(false);
-  const [dailyChallenge, setDailyChallenge] = useState<string>('');
+  // Cognitive exercises data
+  const cognitiveExercises: CognitiveExercise[] = [
+    {
+      id: 'memory-palace',
+      name: 'Memory Palace Technique',
+      sanskrit: 'स्मृति महल (Smriti Mahal)',
+      description: 'Ancient technique to enhance memory using spatial visualization',
+      type: 'memory',
+      difficulty: 'intermediate',
+      duration: 10,
+      benefits: ['Enhanced recall', 'Spatial memory', 'Visualization skills'],
+      cultural: true
+    },
+    {
+      id: 'attention-training',
+      name: 'Focused Attention Training',
+      sanskrit: 'एकाग्रता अभ्यास (Ekagrata Abhyas)',
+      description: 'Develop sustained attention through mindful observation',
+      type: 'attention',
+      difficulty: 'beginner',
+      duration: 15,
+      benefits: ['Improved focus', 'Reduced mind wandering', 'Mental clarity'],
+      cultural: true
+    },
+    {
+      id: 'processing-speed',
+      name: 'Cognitive Processing Challenge',
+      description: 'Rapid pattern recognition and response training',
+      type: 'processing',
+      difficulty: 'advanced',
+      duration: 8,
+      benefits: ['Faster thinking', 'Quick decision making', 'Mental agility'],
+      cultural: false
+    },
+    {
+      id: 'mental-flexibility',
+      name: 'Cognitive Flexibility Training',
+      sanskrit: 'मानसिक लचीलापन (Mansik Lacheelapan)',
+      description: 'Switch between different mental tasks and concepts',
+      type: 'flexibility',
+      difficulty: 'intermediate',
+      duration: 12,
+      benefits: ['Adaptability', 'Creative thinking', 'Problem solving'],
+      cultural: true
+    }
+  ];
 
+  // Mental wellness content
+  const mentalWellnessContent: MentalWellnessContent[] = [
+    {
+      id: 'gayatri-mantra',
+      title: 'Gayatri Mantra for Mental Clarity',
+      sanskrit: 'गायत्री मंत्र',
+      type: 'mantra',
+      duration: 10,
+      description: 'Sacred mantra to illuminate the mind and enhance cognitive function',
+      content: [
+        'ॐ भूर्भुवः स्वः',
+        'तत्सवितुर्वरेण्यं',
+        'भर्गो देवस्य धीमहि',
+        'धियो यो नः प्रचोदयात्'
+      ],
+      benefits: ['Mental clarity', 'Enhanced concentration', 'Spiritual awakening']
+    },
+    {
+      id: 'pranayama-focus',
+      title: 'Nadi Shodhana for Mental Balance',
+      sanskrit: 'नाड़ी शोधन प्राणायाम',
+      type: 'breathing',
+      duration: 8,
+      description: 'Alternate nostril breathing to balance the nervous system',
+      content: [
+        'Sit comfortably with spine straight',
+        'Use right thumb to close right nostril',
+        'Inhale through left nostril for 4 counts',
+        'Close left nostril, release right, exhale for 4 counts',
+        'Inhale right nostril, switch, exhale left',
+        'Continue for 8-10 cycles'
+      ],
+      benefits: ['Nervous system balance', 'Mental equilibrium', 'Enhanced focus']
+    },
+    {
+      id: 'meditation-clarity',
+      title: 'Trataka Meditation',
+      sanskrit: 'त्राटक ध्यान',
+      type: 'meditation',
+      duration: 15,
+      description: 'Candle gazing meditation to develop concentration and mental clarity',
+      content: [
+        'Sit 3 feet away from a lit candle',
+        'Gaze steadily at the flame without blinking',
+        'When eyes water, close them and visualize the flame',
+        'Hold the inner image as long as possible',
+        'Open eyes and repeat the process',
+        'Practice for 10-15 minutes daily'
+      ],
+      benefits: ['Concentration power', 'Memory enhancement', 'Mental stability']
+    },
+    {
+      id: 'vedic-wisdom',
+      title: 'Ancient Wisdom for Modern Mind',
+      sanskrit: 'वैदिक ज्ञान',
+      type: 'wisdom',
+      duration: 5,
+      description: 'Timeless principles for mental wellness from Vedic tradition',
+      content: [
+        'यत्र योगेश्वरः कृष्णो यत्र पार्थो धनुर्धरः - Where there is focused mind, there is success',
+        'मन एव मनुष्याणां कारणं बन्धमोक्षयोः - Mind is the cause of bondage and liberation',
+        'Regular practice (अभ्यास) leads to mastery',
+        'Detachment (वैराग्य) brings mental peace',
+        'Consistent effort (पुरुषार्थ) yields results'
+      ],
+      benefits: ['Philosophical understanding', 'Mental framework', 'Life wisdom']
+    }
+  ];
+
+  // Effects
   useEffect(() => {
-    const measurement = measurePerformance('MindScreen');
-    
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: Platform.OS !== 'web',
-    }).start(() => {
-      measurement.end();
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+    ]).start();
+
+    // Pulse animation for active elements
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.05,
+          duration: 1000,
+          useNativeDriver: Platform.OS !== 'web',
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: Platform.OS !== 'web',
+        }),
+      ])
+    );
+    pulseLoop.start();
+
+    return () => pulseLoop.stop();
+  }, []);
+
+  // Focus session timer effect
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (focusSession && focusSession.isActive && focusSession.timeRemaining > 0) {
+      interval = setInterval(() => {
+        setFocusSession(prev => {
+          if (!prev) return null;
+          const newTime = prev.timeRemaining - 1;
+          if (newTime <= 0) {
+            handleFocusSessionComplete();
+            return { ...prev, timeRemaining: 0, isActive: false };
+          }
+          return { ...prev, timeRemaining: newTime };
+        });
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [focusSession]);
+
+  // Handlers
+  const handleGoBack = useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate('Home' as never);
+    }
+  }, [navigation]);
+
+  const startMemoryGame = useCallback(() => {
+    const initialSequence = [Math.floor(Math.random() * 4) + 1];
+    setMemoryGame({
+      id: `memory-${Date.now()}`,
+      sequence: initialSequence,
+      userSequence: [],
+      currentStep: 0,
+      isPlaying: true,
+      isUserTurn: false,
+      score: 0,
+      level: 1
     });
-
-    initializeMindOptimization();
-  }, [fadeAnim]);
-
-  const initializeMindOptimization = async () => {
-    try {
-      generateAIBrainTraining();
-      generateDailyChallenge();
-      updateCognitiveMetrics();
-      checkMindAchievements();
-    } catch (error) {
-      console.error('Error initializing mind optimization:', error);
-    }
-  };
-
-  const generateAIBrainTraining = () => {
-    const currentScore = pillarScores.mind;
-    const userLevel = userProfile.level;
+    setShowingSequence(true);
     
-    const brainTrainingModules: BrainTrainingModule[] = [
-      {
-        id: 'neuroplasticity-boost',
-        name: 'Neural Pathway Enhancement',
-        type: 'memory',
-        duration: 20,
-        difficulty: currentScore > 85 ? 'advanced' : 'intermediate',
-        aiOptimized: true,
-        neuralBenefit: 'Strengthens synaptic connections and enhances memory consolidation',
-        exercises: [
-          {
-            name: 'Pattern Recognition Matrix',
-            description: 'Identify complex visual patterns to enhance pattern recognition abilities',
-            targetArea: ['visual processing', 'pattern recognition', 'working memory'],
-            estimatedTime: 5,
-            cognitiveLoad: 'high'
-          },
-          {
-            name: 'Memory Palace Construction',
-            description: 'Build mental maps to enhance spatial-visual memory systems',
-            targetArea: ['spatial memory', 'visualization', 'recall'],
-            estimatedTime: 8,
-            cognitiveLoad: 'medium'
-          },
-          {
-            name: 'Dual N-Back Training',
-            description: 'Advanced working memory enhancement through dual-task paradigm',
-            targetArea: ['working memory', 'attention', 'fluid intelligence'],
-            estimatedTime: 7,
-            cognitiveLoad: 'high'
-          }
-        ]
-      },
-      {
-        id: 'focus-mastery',
-        name: 'Attention Optimization Protocol',
-        type: 'focus',
-        duration: 15,
-        difficulty: currentScore > 80 ? 'advanced' : 'intermediate',
-        aiOptimized: true,
-        neuralBenefit: 'Enhances sustained attention and cognitive control networks',
-        exercises: [
-          {
-            name: 'Mindful Attention Training',
-            description: 'Focused breathing with distraction resistance protocols',
-            targetArea: ['sustained attention', 'cognitive control', 'mindfulness'],
-            estimatedTime: 10,
-            cognitiveLoad: 'medium'
-          },
-          {
-            name: 'Stroop Interference Training',
-            description: 'Advanced cognitive flexibility and inhibitory control',
-            targetArea: ['cognitive flexibility', 'inhibitory control', 'processing speed'],
-            estimatedTime: 5,
-            cognitiveLoad: 'high'
-          }
-        ]
-      }
-    ];
-
-    setActiveBrainTraining(brainTrainingModules[0]);
-  };
-
-  const generateDailyChallenge = () => {
-    const challenges = [
-      'Memorize a 10-digit number sequence and recall it after 5 minutes',
-      'Practice mental math: Calculate 17 × 23 without writing',
-      'Name 20 objects in your room backwards alphabetically',
-      'Visualize your childhood home in complete detail for 3 minutes',
-      'Learn 5 new vocabulary words in a foreign language',
-      'Practice the Pomodoro Technique: 25 min focus + 5 min break',
-      'Meditate for 10 minutes focusing only on breath awareness'
-    ];
-    
-    setDailyChallenge(challenges[Math.floor(Math.random() * challenges.length)]);
-  };
-
-  const updateCognitiveMetrics = () => {
-    setCognitiveMetrics(prev => ({
-      focusLevel: Math.max(70, Math.min(100, prev.focusLevel + (Math.random() - 0.4) * 5)),
-      memoryScore: Math.max(70, Math.min(100, prev.memoryScore + (Math.random() - 0.3) * 4)),
-      processingSpeed: Math.max(70, Math.min(100, prev.processingSpeed + (Math.random() - 0.2) * 3)),
-      creativity: Math.max(70, Math.min(100, prev.creativity + (Math.random() - 0.1) * 6)),
-      mentalClarity: Math.max(70, Math.min(100, prev.mentalClarity + (Math.random() - 0.3) * 4)),
-      neuroplasticity: Math.max(60, Math.min(95, prev.neuroplasticity + (Math.random() - 0.2) * 3))
-    }));
-  };
-
-  const checkMindAchievements = async () => {
-    const achievements = [];
-    
-    if (pillarScores.mind >= 90) {
-      achievements.push('Cognitive Excellence Master');
-    }
-    
-    if (cognitiveMetrics.focusLevel >= 90) {
-      achievements.push('Focus Mastery Champion');
-    }
-    
-    if (cognitiveMetrics.neuroplasticity >= 85) {
-      achievements.push('Neuroplasticity Expert');
-    }
-
-    for (const achievement of achievements) {
-      await notificationManager.scheduleAchievementNotification(achievement, 'mind');
-    }
-  };
-
-  const startBrainTraining = () => {
-    if (!activeBrainTraining) return;
-    
-    setIsTrainingActive(true);
-    setTrainingTimer(0);
-    
-    const timer = setInterval(() => {
-      setTrainingTimer(prev => prev + 1);
-    }, 1000);
-
+    // Show sequence to user
     setTimeout(() => {
-      clearInterval(timer);
-      completeBrainTraining();
-    }, activeBrainTraining.duration * 60 * 1000);
+      setShowingSequence(false);
+      setMemoryGame(prev => prev ? { ...prev, isUserTurn: true } : null);
+    }, (initialSequence.length + 1) * 800);
+  }, []);
 
-    Alert.alert(
-      '🧠 Brain Training Started!',
-      `Beginning ${activeBrainTraining.name}. Focus your mind and enhance your cognitive abilities!`,
-      [{ text: 'Let\'s Begin!', style: 'default' }]
-    );
-  };
+  const handleMemoryInput = useCallback(async (number: number) => {
+    if (!memoryGame || !memoryGame.isUserTurn) return;
 
-  const completeBrainTraining = async () => {
-    if (!activeBrainTraining) return;
+    const newUserSequence = [...memoryGame.userSequence, number];
+    const isCorrect = newUserSequence[memoryGame.currentStep] === memoryGame.sequence[memoryGame.currentStep];
 
-    setIsTrainingActive(false);
-    
-    const improvement = Math.floor(Math.random() * 6) + 3;
-    const newScore = Math.min(100, pillarScores.mind + improvement);
-    actions.updatePillarScore('mind', newScore);
+    if (!isCorrect) {
+      // Game over
+      Alert.alert('Game Over!', `Final Score: ${memoryGame.score}\nLevel Reached: ${memoryGame.level}`);
+      
+      // Add session
+      await actions.addSession({
+        pillar: 'mind',
+        type: 'practice',
+        duration: 5,
+        date: new Date().toISOString(),
+        score: Math.min(memoryGame.score * 10, 100),
+        mood: 'good',
+        notes: `Memory game - Level ${memoryGame.level}, Score ${memoryGame.score}`
+      });
 
-    actions.addSession({
+      setMemoryGame(null);
+      return;
+    }
+
+    if (newUserSequence.length === memoryGame.sequence.length) {
+      // Level complete
+      const newLevel = memoryGame.level + 1;
+      const newScore = memoryGame.score + memoryGame.level * 10;
+      const newSequence = [...memoryGame.sequence, Math.floor(Math.random() * 4) + 1];
+      
+      setMemoryGame({
+        ...memoryGame,
+        sequence: newSequence,
+        userSequence: [],
+        currentStep: 0,
+        isUserTurn: false,
+        score: newScore,
+        level: newLevel
+      });
+      
+      setShowingSequence(true);
+      setTimeout(() => {
+        setShowingSequence(false);
+        setMemoryGame(prev => prev ? { ...prev, isUserTurn: true } : null);
+      }, (newSequence.length + 1) * 800);
+    } else {
+      setMemoryGame({
+        ...memoryGame,
+        userSequence: newUserSequence,
+        currentStep: memoryGame.currentStep + 1
+      });
+    }
+  }, [memoryGame, actions]);
+
+  const startFocusSession = useCallback((type: FocusSession['type'], duration: number) => {
+    setFocusSession({
+      id: `focus-${Date.now()}`,
+      type,
+      duration,
+      timeRemaining: duration * 60,
+      isActive: true,
+      completedCycles: 0,
+      targetCycles: type === 'pomodoro' ? 4 : 1
+    });
+  }, []);
+
+  const handleFocusSessionComplete = useCallback(async () => {
+    if (!focusSession) return;
+
+    await actions.addSession({
       pillar: 'mind',
-      duration: Math.floor(trainingTimer / 60),
-      improvement: improvement
+      type: 'practice',
+      duration: focusSession.duration,
+      date: new Date().toISOString(),
+      score: 85 + Math.floor(Math.random() * 15),
+      mood: 'excellent',
+      notes: `${focusSession.type} session completed`
     });
 
-    await notificationManager.scheduleAchievementNotification(
-      `Brain Training Complete: +${improvement}% Cognitive Enhancement`,
-      'mind'
-    );
+    // Check for achievements
+    const mindSessionsCount = sessions.filter(s => s.pillar === 'mind').length + 1;
+    if (mindSessionsCount === 1) {
+      await actions.addAchievement({
+        title: '🧠 Mental Training Begins',
+        description: 'Completed your first mind training session',
+        pillar: 'mind',
+        rarity: 'common'
+      });
+    }
+
+    if (focusSession.duration >= 25) {
+      await actions.addAchievement({
+        title: '⏰ Deep Focus Master',
+        description: 'Completed a 25+ minute focused session',
+        pillar: 'mind',
+        rarity: 'rare'
+      });
+    }
 
     Alert.alert(
-      '🎉 Training Completed!',
-      `Outstanding cognitive work! Your mind pillar improved by ${improvement}%. Your neural pathways are strengthening!`,
-      [{ text: 'Brilliant!', style: 'default' }]
+      '🎉 Session Complete!',
+      `Excellent focus! You completed a ${focusSession.duration}-minute ${focusSession.type} session.`,
+      [{ text: 'Great!', style: 'default' }]
+    );
+
+    setFocusSession(null);
+  }, [focusSession, actions, sessions]);
+
+  const stopFocusSession = useCallback(() => {
+    Alert.alert(
+      'Stop Session?',
+      'Are you sure you want to stop the current focus session?',
+      [
+        { text: 'Continue', style: 'cancel' },
+        { text: 'Stop', style: 'destructive', onPress: () => setFocusSession(null) }
+      ]
+    );
+  }, []);
+
+  const startCognitiveExercise = useCallback(async (exercise: CognitiveExercise) => {
+    // Simulate exercise completion
+    await actions.addSession({
+      pillar: 'mind',
+      type: 'practice',
+      duration: exercise.duration,
+      date: new Date().toISOString(),
+      score: 75 + Math.floor(Math.random() * 25),
+      mood: 'good',
+      notes: `Cognitive exercise: ${exercise.name}`
+    });
+
+    if (exercise.cultural) {
+      await actions.addAchievement({
+        title: '🕉️ Ancient Wisdom Seeker',
+        description: 'Completed a traditional cognitive practice',
+        pillar: 'mind',
+        rarity: 'rare'
+      });
+    }
+
+    Alert.alert(
+      '✨ Exercise Complete!',
+      `You completed ${exercise.name}. Your cognitive abilities are improving!`,
+      [{ text: 'Continue Training', style: 'default' }]
+    );
+  }, [actions]);
+
+  // Render functions
+  const renderHeader = () => (
+    <LinearGradient
+      colors={[Colors.mind, '#2563EB']}
+      style={styles.header}
+    >
+      <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
+        <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+      </TouchableOpacity>
+      
+      <View style={styles.headerContent}>
+        <Text style={styles.headerTitle}>Mind Pillar</Text>
+        <Text style={styles.headerSubtitle}>Cognitive Enhancement • मानसिक विकास</Text>
+      </View>
+
+      <View style={styles.headerScore}>
+        <Text style={styles.headerScoreValue}>{Math.round(pillarScores.mind || 0)}%</Text>
+      </View>
+    </LinearGradient>
+  );
+
+  const renderTabBar = () => (
+    <View style={styles.tabBar}>
+      {[
+        { key: 'training', label: 'Training', icon: 'fitness' },
+        { key: 'focus', label: 'Focus', icon: 'time' },
+        { key: 'games', label: 'Games', icon: 'game-controller' },
+        { key: 'wisdom', label: 'Wisdom', icon: 'book' }
+      ].map(tab => (
+        <TouchableOpacity
+          key={tab.key}
+          style={[styles.tab, selectedTab === tab.key && styles.tabActive]}
+          onPress={() => setSelectedTab(tab.key as any)}
+        >
+          <Ionicons 
+            name={tab.icon as any} 
+            size={20} 
+            color={selectedTab === tab.key ? Colors.mind : Colors.textSecondary} 
+          />
+          <Text style={[
+            styles.tabLabel,
+            selectedTab === tab.key && styles.tabLabelActive
+          ]}>
+            {tab.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  const renderActiveFocusSession = () => {
+    if (!focusSession || !focusSession.isActive) return null;
+
+    const minutes = Math.floor(focusSession.timeRemaining / 60);
+    const seconds = focusSession.timeRemaining % 60;
+
+    return (
+      <Animated.View style={[styles.activeFocusContainer, { transform: [{ scale: pulseAnim }] }]}>
+        <LinearGradient
+          colors={[Colors.mind, '#2563EB']}
+          style={styles.activeFocusCard}
+        >
+          <View style={styles.activeFocusHeader}>
+            <Text style={styles.activeFocusTitle}>
+              {focusSession.type.charAt(0).toUpperCase() + focusSession.type.slice(1)} Session
+            </Text>
+            <TouchableOpacity style={styles.stopButton} onPress={stopFocusSession}>
+              <Ionicons name="stop" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.timerContainer}>
+            <Text style={styles.timerText}>
+              {minutes.toString().padStart(2, '0')}:{seconds.toString().padStart(2, '0')}
+            </Text>
+          </View>
+
+          <Text style={styles.focusInstructions}>
+            Stay focused on your breath. Let thoughts pass without judgment.
+          </Text>
+        </LinearGradient>
+      </Animated.View>
     );
   };
 
   const renderCognitiveMetrics = () => (
-    <PerformanceMonitor>
-      <View style={styles.cognitiveSection}>
-        <Text style={styles.sectionTitle}>Cognitive Performance Metrics</Text>
-        
-        <View style={styles.metricsGrid}>
-          {[
-            { label: 'Focus', value: cognitiveMetrics.focusLevel, icon: 'eye', color: Colors.mind },
-            { label: 'Memory', value: cognitiveMetrics.memoryScore, icon: 'library', color: Colors.success },
-            { label: 'Speed', value: cognitiveMetrics.processingSpeed, icon: 'flash', color: Colors.warning },
-            { label: 'Creativity', value: cognitiveMetrics.creativity, icon: 'color-palette', color: Colors.spirit }
-          ].map((metric, index) => (
-            <View key={index} style={styles.metricCard}>
-              <View style={[styles.metricIcon, { backgroundColor: metric.color }]}>
-                <Ionicons name={metric.icon as any} size={20} color="#FFFFFF" />
-              </View>
-              <Text style={styles.metricLabel}>{metric.label}</Text>
-              <Text style={styles.metricValue}>{metric.value}%</Text>
-              <View style={styles.metricBar}>
-                <View 
-                  style={[
-                    styles.metricBarFill, 
-                    { width: `${metric.value}%`, backgroundColor: metric.color }
-                  ]} 
-                />
-              </View>
-            </View>
-          ))}
+    <View style={styles.metricsContainer}>
+      <Text style={styles.sectionTitle}>Cognitive Metrics</Text>
+      <View style={styles.metricsGrid}>
+        <View style={styles.metricCard}>
+          <Ionicons name="eye" size={24} color={Colors.success} />
+          <Text style={styles.metricValue}>{cognitiveMetrics.focusScore}</Text>
+          <Text style={styles.metricLabel}>Focus Score</Text>
+        </View>
+        <View style={styles.metricCard}>
+          <Ionicons name="library" size={24} color={Colors.warning} />
+          <Text style={styles.metricValue}>{cognitiveMetrics.memoryScore}</Text>
+          <Text style={styles.metricLabel}>Memory Score</Text>
+        </View>
+        <View style={styles.metricCard}>
+          <Ionicons name="time" size={24} color={Colors.mind} />
+          <Text style={styles.metricValue}>{cognitiveMetrics.attentionSpan}m</Text>
+          <Text style={styles.metricLabel}>Attention Span</Text>
+        </View>
+        <View style={styles.metricCard}>
+          <Ionicons name="trophy" size={24} color={Colors.danger} />
+          <Text style={styles.metricValue}>{cognitiveMetrics.sessionsToday}</Text>
+          <Text style={styles.metricLabel}>Today</Text>
         </View>
       </View>
-    </PerformanceMonitor>
+    </View>
   );
 
-  const renderBrainTraining = () => (
-    <PerformanceMonitor>
-      <View style={styles.trainingSection}>
-        <View style={styles.trainingHeader}>
-          <Text style={styles.sectionTitle}>AI Brain Training</Text>
-          {activeBrainTraining?.aiOptimized && (
-            <View style={styles.aiOptimizedBadge}>
-              <Ionicons name="flash" size={12} color="#FFFFFF" />
-              <Text style={styles.aiOptimizedText}>AI Optimized</Text>
-            </View>
-          )}
-        </View>
-
-        {activeBrainTraining && (
-          <View style={styles.trainingCard}>
-            <LinearGradient
-              colors={[Colors.mind, '#6366F1']}
-              style={styles.trainingGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            >
-              <View style={styles.trainingInfo}>
-                <Text style={styles.trainingName}>{activeBrainTraining.name}</Text>
-                <Text style={styles.trainingDetails}>
-                  {activeBrainTraining.duration} min • {activeBrainTraining.difficulty.toUpperCase()}
-                </Text>
-                <Text style={styles.trainingBenefit}>
-                  {activeBrainTraining.neuralBenefit}
-                </Text>
-              </View>
-
-              {isTrainingActive ? (
-                <View style={styles.trainingTimer}>
-                  <Text style={styles.timerText}>
-                    {Math.floor(trainingTimer / 60)}:{(trainingTimer % 60).toString().padStart(2, '0')}
-                  </Text>
-                  <Text style={styles.timerLabel}>Training</Text>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={styles.startTrainingButton}
-                  onPress={startBrainTraining}
-                >
-                  <Ionicons name="play" size={24} color="#FFFFFF" />
-                  <Text style={styles.startTrainingText}>Start</Text>
-                </TouchableOpacity>
-              )}
-            </LinearGradient>
-
-            <View style={styles.exercisePreview}>
-              <Text style={styles.exercisePreviewTitle}>Training Modules:</Text>
-              {activeBrainTraining.exercises.slice(0, 2).map((exercise, index) => (
-                <View key={index} style={styles.exerciseItem}>
-                  <Text style={styles.exerciseName}>{exercise.name}</Text>
-                  <Text style={styles.exerciseDescription}>{exercise.description}</Text>
-                  <Text style={styles.exerciseTargets}>
-                    Targets: {exercise.targetArea.join(', ')}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-      </View>
-    </PerformanceMonitor>
-  );
-
-  const renderMindOptimizationScore = () => (
-    <PerformanceMonitor>
-      <View style={styles.scoreSection}>
-        <LinearGradient
-          colors={[Colors.mind, '#4F46E5']}
-          style={styles.scoreGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+  const renderCognitiveTraining = () => (
+    <View style={styles.trainingContainer}>
+      <Text style={styles.sectionTitle}>Cognitive Training</Text>
+      {cognitiveExercises.map(exercise => (
+        <TouchableOpacity
+          key={exercise.id}
+          style={styles.exerciseCard}
+          onPress={() => startCognitiveExercise(exercise)}
         >
-          <View style={styles.scoreHeader}>
-            <Ionicons name="library" size={32} color="#FFFFFF" />
-            <Text style={styles.scoreTitle}>Mind Optimization</Text>
-          </View>
-          <Text style={styles.scoreValue}>{pillarScores.mind}%</Text>
-          <Text style={styles.scoreSubtitle}>Cognitive Enhancement Level</Text>
-          
-          <View style={styles.aiPrediction}>
-            <Ionicons name="extension-puzzle" size={16} color="rgba(255,255,255,0.8)" />
-            <Text style={styles.aiPredictionText}>
-              Neuroplasticity at {cognitiveMetrics.neuroplasticity}% - Optimal learning state
-            </Text>
-          </View>
-
-          <View style={styles.quickStats}>
-            <View style={styles.quickStat}>
-              <Text style={styles.quickStatValue}>{userProfile.totalSessions}</Text>
-              <Text style={styles.quickStatLabel}>Brain Sessions</Text>
+          <View style={styles.exerciseHeader}>
+            <View style={styles.exerciseInfo}>
+              <Text style={styles.exerciseName}>{exercise.name}</Text>
+              {exercise.sanskrit && (
+                <Text style={styles.exerciseSanskrit}>{exercise.sanskrit}</Text>
+              )}
+              <Text style={styles.exerciseDescription}>{exercise.description}</Text>
             </View>
-            <View style={styles.quickStat}>
-              <Text style={styles.quickStatValue}>{cognitiveMetrics.mentalClarity}</Text>
-              <Text style={styles.quickStatLabel}>Mental Clarity</Text>
+            <View style={styles.exerciseMeta}>
+              <Text style={styles.exerciseDuration}>{exercise.duration}min</Text>
+              <Text style={styles.exerciseDifficulty}>
+                {exercise.difficulty.charAt(0).toUpperCase() + exercise.difficulty.slice(1)}
+              </Text>
+              {exercise.cultural && <Text style={styles.culturalBadge}>Cultural</Text>}
             </View>
           </View>
-        </LinearGradient>
-      </View>
-    </PerformanceMonitor>
+          <View style={styles.exerciseBenefits}>
+            {exercise.benefits.slice(0, 3).map((benefit, index) => (
+              <Text key={index} style={styles.benefitTag}>{benefit}</Text>
+            ))}
+          </View>
+        </TouchableOpacity>
+      ))}
+    </View>
   );
 
-  const renderDailyChallenge = () => (
-    <PerformanceMonitor>
-      <View style={styles.challengeSection}>
-        <Text style={styles.sectionTitle}>Daily Cognitive Challenge</Text>
-        <View style={styles.challengeCard}>
-          <View style={styles.challengeIcon}>
-            <Ionicons name="trophy" size={24} color={Colors.warning} />
+  const renderFocusTraining = () => (
+    <View style={styles.focusContainer}>
+      <Text style={styles.sectionTitle}>Focus Training</Text>
+      <Text style={styles.sectionSubtitle}>Build sustained attention and mental clarity</Text>
+      
+      <View style={styles.focusOptionsGrid}>
+        <TouchableOpacity
+          style={styles.focusOptionCard}
+          onPress={() => startFocusSession('pomodoro', 25)}
+          disabled={!!focusSession}
+        >
+          <Ionicons name="time" size={32} color={Colors.danger} />
+          <Text style={styles.focusOptionTitle}>Pomodoro</Text>
+          <Text style={styles.focusOptionSubtitle}>25 min work focus</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.focusOptionCard}
+          onPress={() => startFocusSession('meditation', 15)}
+          disabled={!!focusSession}
+        >
+          <Ionicons name="leaf" size={32} color={Colors.spirit} />
+          <Text style={styles.focusOptionTitle}>Meditation</Text>
+          <Text style={styles.focusOptionSubtitle}>15 min mindfulness</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.focusOptionCard}
+          onPress={() => startFocusSession('breathing', 10)}
+          disabled={!!focusSession}
+        >
+          <Ionicons name="cloud" size={32} color={Colors.success} />
+          <Text style={styles.focusOptionTitle}>Breathing</Text>
+          <Text style={styles.focusOptionSubtitle}>10 min pranayama</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.focusOptionCard}
+          onPress={() => startFocusSession('concentration', 20)}
+          disabled={!!focusSession}
+        >
+          <Ionicons name="eye" size={32} color={Colors.warning} />
+          <Text style={styles.focusOptionTitle}>Concentration</Text>
+          <Text style={styles.focusOptionSubtitle}>20 min deep focus</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderMemoryGame = () => (
+    <View style={styles.gameContainer}>
+      <Text style={styles.sectionTitle}>Memory Challenge</Text>
+      <Text style={styles.sectionSubtitle}>Test and improve your sequential memory</Text>
+      
+      {!memoryGame ? (
+        <TouchableOpacity style={styles.startGameButton} onPress={startMemoryGame}>
+          <Ionicons name="play-circle" size={48} color={Colors.mind} />
+          <Text style={styles.startGameText}>Start Memory Game</Text>
+          <Text style={styles.startGameSubtext}>Follow the sequence and repeat it back</Text>
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.memoryGameActive}>
+          <View style={styles.gameStats}>
+            <Text style={styles.gameLevel}>Level: {memoryGame.level}</Text>
+            <Text style={styles.gameScore}>Score: {memoryGame.score}</Text>
           </View>
-          <View style={styles.challengeContent}>
-            <Text style={styles.challengeText}>{dailyChallenge}</Text>
-            <TouchableOpacity 
-              style={styles.challengeButton}
-              onPress={() => Alert.alert('🎯 Challenge Accepted!', 'Great! Complete this challenge and track your progress.')}
-            >
-              <Text style={styles.challengeButtonText}>Accept Challenge</Text>
-            </TouchableOpacity>
+          
+          <Text style={styles.gameInstructions}>
+            {showingSequence ? 'Watch the sequence...' : 
+             memoryGame.isUserTurn ? 'Repeat the sequence' : 'Get ready...'}
+          </Text>
+
+          <View style={styles.gameButtons}>
+            {[1, 2, 3, 4].map(number => (
+              <TouchableOpacity
+                key={number}
+                style={[
+                  styles.gameButton,
+                  showingSequence && memoryGame.sequence[memoryGame.currentStep] === number && styles.gameButtonActive
+                ]}
+                onPress={() => handleMemoryInput(number)}
+                disabled={!memoryGame.isUserTurn}
+              >
+                <Text style={styles.gameButtonText}>{number}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
-      </View>
-    </PerformanceMonitor>
+      )}
+    </View>
   );
+
+  const renderMentalWisdom = () => (
+    <View style={styles.wisdomContainer}>
+      <Text style={styles.sectionTitle}>Mental Wellness Wisdom</Text>
+      <Text style={styles.sectionSubtitle}>वेदांत • Ancient practices for modern minds</Text>
+      
+      {mentalWellnessContent.map(content => (
+        <View key={content.id} style={styles.wisdomCard}>
+          <View style={styles.wisdomHeader}>
+            <View style={styles.wisdomTitleContainer}>
+              <Text style={styles.wisdomTitle}>{content.title}</Text>
+              {content.sanskrit && (
+                <Text style={styles.wisdomSanskrit}>{content.sanskrit}</Text>
+              )}
+            </View>
+            <View style={styles.wisdomMeta}>
+              <Text style={styles.wisdomDuration}>{content.duration}min</Text>
+              <Ionicons 
+                name={
+                  content.type === 'mantra' ? 'musical-notes' :
+                  content.type === 'breathing' ? 'cloud' :
+                  content.type === 'meditation' ? 'leaf' : 'book'
+                } 
+                size={20} 
+                color={Colors.spirit} 
+              />
+            </View>
+          </View>
+          
+          <Text style={styles.wisdomDescription}>{content.description}</Text>
+          
+          <View style={styles.wisdomContent}>
+            {content.content.slice(0, 3).map((item, index) => (
+              <Text key={index} style={styles.wisdomContentItem}>• {item}</Text>
+            ))}
+            {content.content.length > 3 && (
+              <Text style={styles.wisdomMore}>+{content.content.length - 3} more steps</Text>
+            )}
+          </View>
+
+          <View style={styles.wisdomBenefits}>
+            {content.benefits.map((benefit, index) => (
+              <Text key={index} style={styles.wisdomBenefit}>{benefit}</Text>
+            ))}
+          </View>
+
+          <TouchableOpacity 
+            style={styles.startWisdomButton}
+            onPress={async () => {
+              await actions.addSession({
+                pillar: 'mind',
+                type: 'practice',
+                duration: content.duration,
+                date: new Date().toISOString(),
+                score: 80 + Math.floor(Math.random() * 20),
+                mood: 'excellent',
+                notes: `Mental wellness practice: ${content.title}`
+              });
+
+              Alert.alert(
+                '🕉️ Practice Complete!',
+                `You completed ${content.title}. Your mind feels more clear and focused.`,
+                [{ text: 'Namaste 🙏', style: 'default' }]
+              );
+            }}
+          >
+            <Text style={styles.startWisdomButtonText}>Begin Practice</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+    </View>
+  );
+
+  const renderTabContent = () => {
+    switch (selectedTab) {
+      case 'training':
+        return (
+          <>
+            {renderCognitiveMetrics()}
+            {renderCognitiveTraining()}
+          </>
+        );
+      case 'focus':
+        return renderFocusTraining();
+      case 'games':
+        return renderMemoryGame();
+      case 'wisdom':
+        return renderMentalWisdom();
+      default:
+        return renderCognitiveTraining();
+    }
+  };
 
   return (
-    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
-        </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Mind Optimization</Text>
-          <Text style={styles.headerSubtitle}>Advanced Cognitive Enhancement</Text>
-        </View>
-        <TouchableOpacity style={styles.settingsButton}>
-          <Ionicons name="settings" size={20} color={Colors.mind} />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {renderMindOptimizationScore()}
-        {renderCognitiveMetrics()}
-        {renderBrainTraining()}
-        {renderDailyChallenge()}
-      </ScrollView>
-    </Animated.View>
+    <ErrorBoundary>
+      <SafeAreaView style={styles.container}>
+        <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+          {renderHeader()}
+          {renderActiveFocusSession()}
+          {renderTabBar()}
+          <ScrollView 
+            style={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContentContainer}
+          >
+            {renderTabContent()}
+          </ScrollView>
+        </Animated.View>
+      </SafeAreaView>
+    </ErrorBoundary>
   );
 };
 
+// Comprehensive styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-    paddingTop: Platform.OS === 'android' ? 25 : 0,
+  },
+  content: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    paddingVertical: 16,
+    paddingTop: Platform.OS === 'android' ? 40 : 16,
   },
   backButton: {
     padding: 8,
-    marginRight: 12,
+    marginRight: 16,
   },
   headerContent: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: Colors.text,
+    color: '#FFFFFF',
   },
   headerSubtitle: {
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: 'rgba(255,255,255,0.8)',
     marginTop: 2,
   },
-  settingsButton: {
-    padding: 8,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 100,
-  },
-  scoreSection: {
-    marginHorizontal: 20,
-    marginTop: 16,
-    marginBottom: 24,
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  scoreGradient: {
-    padding: 24,
+  headerScore: {
     alignItems: 'center',
   },
-  scoreHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  scoreTitle: {
-    fontSize: 18,
-    color: 'rgba(255,255,255,0.9)',
-    marginLeft: 8,
+  headerScoreValue: {
+    fontSize: 28,
     fontWeight: 'bold',
+    color: '#FFFFFF',
   },
-  scoreValue: {
+
+  // Active Focus Session
+  activeFocusContainer: {
+    marginHorizontal: 20,
+    marginVertical: 16,
+  },
+  activeFocusCard: {
+    borderRadius: 16,
+    padding: 20,
+  },
+  activeFocusHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  activeFocusTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  stopButton: {
+    padding: 8,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 8,
+  },
+  timerContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  timerText: {
     fontSize: 48,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
-  scoreSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-    marginBottom: 16,
-  },
-  aiPrediction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  aiPredictionText: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
-    marginLeft: 4,
-    fontStyle: 'italic',
-  },
-  quickStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-  },
-  quickStat: {
-    alignItems: 'center',
-  },
-  quickStatValue: {
+  focusInstructions: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: 'rgba(255,255,255,0.9)',
+    textAlign: 'center',
   },
-  quickStatLabel: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 2,
+
+  // Tab Bar
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    marginHorizontal: 20,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
   },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    gap: 6,
+  },
+  tabActive: {
+    backgroundColor: Colors.mindLight,
+  },
+  tabLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  tabLabelActive: {
+    color: Colors.mind,
+  },
+
+  // Scroll Content
+  scrollContent: {
+    flex: 1,
+  },
+  scrollContentContainer: {
+    paddingBottom: 100,
+  },
+
+  // Sections
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: Colors.text,
+    marginBottom: 8,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: Colors.textSecondary,
     marginBottom: 16,
   },
-  cognitiveSection: {
+
+  // Cognitive Metrics
+  metricsContainer: {
     marginHorizontal: 20,
     marginBottom: 24,
   },
@@ -580,202 +962,320 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   metricCard: {
+    flex: 1,
+    minWidth: '45%',
     backgroundColor: Colors.surface,
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
-    width: (width - 56) / 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     elevation: 4,
   },
-  metricIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
+  metricValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginVertical: 8,
   },
   metricLabel: {
     fontSize: 12,
     color: Colors.textSecondary,
-    marginBottom: 4,
   },
-  metricValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: Colors.text,
-    marginBottom: 8,
-  },
-  metricBar: {
-    width: '100%',
-    height: 4,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  metricBarFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-  trainingSection: {
+
+  // Cognitive Training
+  trainingContainer: {
     marginHorizontal: 20,
     marginBottom: 24,
   },
-  trainingHeader: {
+  exerciseCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  exerciseHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  aiOptimizedBadge: {
+  exerciseInfo: {
+    flex: 1,
+    marginRight: 16,
+  },
+  exerciseName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  exerciseSanskrit: {
+    fontSize: 14,
+    color: Colors.spirit,
+    fontStyle: 'italic',
+    marginBottom: 4,
+  },
+  exerciseDescription: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+  },
+  exerciseMeta: {
+    alignItems: 'flex-end',
+  },
+  exerciseDuration: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.mind,
+  },
+  exerciseDifficulty: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  culturalBadge: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: Colors.spirit,
+    backgroundColor: Colors.spirit + '20',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  exerciseBenefits: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.mind,
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  benefitTag: {
+    fontSize: 12,
+    color: Colors.mind,
+    backgroundColor: Colors.mindLight,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
   },
-  aiOptimizedText: {
-    fontSize: 10,
-    color: '#FFFFFF',
-    marginLeft: 2,
-    fontWeight: '600',
+
+  // Focus Training
+  focusContainer: {
+    marginHorizontal: 20,
+    marginBottom: 24,
   },
-  trainingCard: {
+  focusOptionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  focusOptionCard: {
+    flex: 1,
+    minWidth: '45%',
     backgroundColor: Colors.surface,
     borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  trainingGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
     padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  trainingInfo: {
-    flex: 1,
-  },
-  trainingName: {
+  focusOptionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  trainingDetails: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 4,
-  },
-  trainingBenefit: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.7)',
-    marginTop: 4,
-    lineHeight: 14,
-  },
-  startTrainingButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  startTrainingText: {
-    color: '#FFFFFF',
-    marginLeft: 4,
-    fontWeight: '600',
-  },
-  trainingTimer: {
-    alignItems: 'center',
-  },
-  timerText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  timerLabel: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
-  },
-  exercisePreview: {
-    padding: 16,
-  },
-  exercisePreviewTitle: {
-    fontSize: 14,
-    fontWeight: '600',
     color: Colors.text,
-    marginBottom: 12,
+    marginTop: 12,
+    marginBottom: 4,
   },
-  exerciseItem: {
-    marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  exerciseName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  exerciseDescription: {
-    fontSize: 11,
+  focusOptionSubtitle: {
+    fontSize: 12,
     color: Colors.textSecondary,
-    marginTop: 2,
-    lineHeight: 14,
+    textAlign: 'center',
   },
-  exerciseTargets: {
-    fontSize: 10,
-    color: Colors.mind,
-    marginTop: 4,
-    fontStyle: 'italic',
-  },
-  challengeSection: {
+
+  // Memory Game
+  gameContainer: {
     marginHorizontal: 20,
-    marginBottom: 32,
+    marginBottom: 24,
   },
-  challengeCard: {
+  startGameButton: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 40,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  startGameText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  startGameSubtext: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  memoryGameActive: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
     padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 6,
   },
-  challengeIcon: {
-    marginRight: 16,
+  gameStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
-  challengeContent: {
-    flex: 1,
+  gameLevel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.mind,
   },
-  challengeText: {
-    fontSize: 14,
+  gameScore: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.success,
+  },
+  gameInstructions: {
+    fontSize: 16,
     color: Colors.text,
-    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  gameButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'center',
+  },
+  gameButton: {
+    width: 80,
+    height: 80,
+    backgroundColor: Colors.mindLight,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  gameButtonActive: {
+    backgroundColor: Colors.mind,
+    borderColor: Colors.mind,
+  },
+  gameButtonText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: Colors.mind,
+  },
+
+  // Mental Wisdom
+  wisdomContainer: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+  },
+  wisdomCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  wisdomHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 12,
   },
-  challengeButton: {
-    backgroundColor: Colors.warning,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
+  wisdomTitleContainer: {
+    flex: 1,
   },
-  challengeButtonText: {
-    color: '#FFFFFF',
+  wisdomTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  wisdomSanskrit: {
+    fontSize: 14,
+    color: Colors.spirit,
+    fontStyle: 'italic',
+  },
+  wisdomMeta: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  wisdomDuration: {
     fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  wisdomDescription: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  wisdomContent: {
+    marginBottom: 16,
+  },
+  wisdomContentItem: {
+    fontSize: 13,
+    color: Colors.text,
+    lineHeight: 18,
+    marginBottom: 4,
+  },
+  wisdomMore: {
+    fontSize: 12,
+    color: Colors.mind,
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  wisdomBenefits: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  wisdomBenefit: {
+    fontSize: 12,
+    color: Colors.spirit,
+    backgroundColor: Colors.spirit + '20',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  startWisdomButton: {
+    backgroundColor: Colors.spirit,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignSelf: 'center',
+  },
+  startWisdomButtonText: {
+    fontSize: 14,
     fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
 
-export default React.memo(MindScreen);
+export default MindScreen;

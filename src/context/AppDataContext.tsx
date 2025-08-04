@@ -1,38 +1,60 @@
-// src/context/AppDataContext.tsx - COMPLETE REAL DATA INTEGRATION WITH PERSISTENCE
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+// src/context/AppDataContext.tsx - COMPLETE REAL DATA SYSTEM
+import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
-
-// Storage Keys
-const STORAGE_KEYS = {
-  USER_PROFILE: '@5pillars_user_profile',
-  PILLAR_SCORES: '@5pillars_pillar_scores',
-  SESSION_DATA: '@5pillars_session_data',
-  AI_INSIGHTS: '@5pillars_ai_insights',
-  ANALYTICS: '@5pillars_analytics',
-  SESSION_HISTORY: '@5pillars_session_history',
-  ACHIEVEMENTS: '@5pillars_achievements',
-  PREFERENCES: '@5pillars_preferences'
-};
 
 // Enhanced Types
-interface UserProfile {
+export interface UserProfile {
+  id: string;
   name: string;
   email: string;
   level: number;
-  streak: number;
   totalSessions: number;
-  joinedDate: string;
+  streak: number;
+  longestStreak: number;
+  joinDate: string;
   lastActiveDate: string;
   preferences: {
-    notifications: boolean;
-    reminderTime: string;
-    preferredPillars: string[];
+    onboardingCompleted: boolean;
+    hasSeenTutorial: boolean;
+    culturalContent: boolean;
     difficulty: 'beginner' | 'intermediate' | 'advanced';
+    preferredPillars: string[];
+    reminderTime: string;
+    darkMode: boolean;
+  };
+  stats: {
+    totalMinutes: number;
+    averageSessionLength: number;
+    favoriteTimeOfDay: string;
+    mostUsedPillar: string;
+    consistencyScore: number;
   };
 }
 
-interface PillarScores {
+export interface SessionData {
+  id: string;
+  pillar: string;
+  type: 'meditation' | 'exercise' | 'practice' | 'checkin';
+  duration: number; // minutes
+  date: string;
+  score: number; // 1-100
+  mood: 'excellent' | 'good' | 'okay' | 'low';
+  notes?: string;
+  achievements?: string[];
+}
+
+export interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  pillar: string;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  unlockedDate: string;
+  progress?: number; // for multi-step achievements
+  isNew?: boolean;
+}
+
+export interface PillarProgress {
   body: number;
   mind: number;
   heart: number;
@@ -40,478 +62,458 @@ interface PillarScores {
   diet: number;
 }
 
-interface SessionData {
-  completedToday: number;
-  todaySessions: number;
-  totalTime: number;
-  weeklyGoal: number;
-  currentWeekProgress: number;
-  lastSessionDate: string;
-}
-
-interface SessionHistory {
-  id: string;
-  pillar: string;
-  duration: number;
-  improvement: number;
-  date: string;
-  type: 'training' | 'meditation' | 'workout' | 'nutrition';
-  notes?: string;
-}
-
-interface Achievement {
-  id: string;
-  title: string;
-  description: string;
-  pillar: string;
-  unlockedDate: string;
-  rarity: 'common' | 'rare' | 'epic' | 'legendary';
-}
-
-interface AIInsight {
+export interface AIInsight {
   id: string;
   title: string;
   description: string;
   pillar: string;
   confidence: number;
-  priority: 'low' | 'medium' | 'high' | 'critical';
+  priority: 'low' | 'medium' | 'high';
   actionPlan: string[];
-  createdDate: string;
-  isActive: boolean;
+  dateGenerated: string;
+  isRead?: boolean;
 }
 
-interface AppState {
-  userProfile: UserProfile;
-  pillarScores: PillarScores;
-  sessionData: SessionData;
-  aiInsights: AIInsight[];
-  analytics: any;
-  sessionHistory: SessionHistory[];
+export interface AppState {
+  userProfile: UserProfile | null;
+  pillarScores: PillarProgress;
+  sessions: SessionData[];
   achievements: Achievement[];
+  aiInsights: AIInsight[];
+  dailyGoals: {
+    sessionTarget: number;
+    minutesTarget: number;
+    completed: boolean;
+  };
+  streakData: {
+    current: number;
+    longest: number;
+    todayCompleted: boolean;
+  };
   isLoading: boolean;
   isInitialized: boolean;
-  lastDataSync: string;
+  lastSyncDate: string | null;
 }
 
-// Action Types
 type AppAction = 
-  | { type: 'INITIALIZE_APP'; payload: Partial<AppState> }
+  | { type: 'INIT_SUCCESS'; payload: Partial<AppState> }
   | { type: 'UPDATE_USER_PROFILE'; payload: Partial<UserProfile> }
-  | { type: 'UPDATE_PILLAR_SCORE'; payload: { pillar: keyof PillarScores; score: number } }
-  | { type: 'ADD_SESSION'; payload: { pillar: string; duration: number; improvement: number; type?: string } }
-  | { type: 'SET_AI_INSIGHTS'; payload: AIInsight[] }
+  | { type: 'ADD_SESSION'; payload: SessionData }
+  | { type: 'UPDATE_PILLAR_SCORES'; payload: Partial<PillarProgress> }
   | { type: 'ADD_ACHIEVEMENT'; payload: Achievement }
-  | { type: 'UPDATE_SESSION_DATA'; payload: Partial<SessionData> }
+  | { type: 'ADD_AI_INSIGHT'; payload: AIInsight }
+  | { type: 'MARK_INSIGHT_READ'; payload: string }
+  | { type: 'UPDATE_STREAK'; payload: number }
   | { type: 'SET_LOADING'; payload: boolean }
-  | { type: 'SYNC_DATA' }
-  | { type: 'RESET_DATA' };
+  | { type: 'SYNC_COMPLETE'; payload: string };
 
 // Initial State
 const initialState: AppState = {
-  userProfile: {
-    name: 'Neural Optimizer',
-    email: '',
-    level: 1,
-    streak: 0,
-    totalSessions: 0,
-    joinedDate: new Date().toISOString(),
-    lastActiveDate: new Date().toISOString(),
-    preferences: {
-      notifications: true,
-      reminderTime: '09:00',
-      preferredPillars: [],
-      difficulty: 'beginner'
-    }
-  },
-  pillarScores: {
-    body: 65,
-    mind: 70,
-    heart: 68,
-    spirit: 72,
-    diet: 75
-  },
-  sessionData: {
-    completedToday: 0,
-    todaySessions: 0,
-    totalTime: 0,
-    weeklyGoal: 21, // 3 sessions per day × 7 days
-    currentWeekProgress: 0,
-    lastSessionDate: ''
-  },
-  aiInsights: [],
-  analytics: {},
-  sessionHistory: [],
+  userProfile: null,
+  pillarScores: { body: 0, mind: 0, heart: 0, spirit: 0, diet: 0 },
+  sessions: [],
   achievements: [],
-  isLoading: false,
+  aiInsights: [],
+  dailyGoals: {
+    sessionTarget: 3,
+    minutesTarget: 30,
+    completed: false
+  },
+  streakData: {
+    current: 0,
+    longest: 0,
+    todayCompleted: false
+  },
+  isLoading: true,
   isInitialized: false,
-  lastDataSync: ''
+  lastSyncDate: null
 };
 
-// Enhanced Reducer with Real Data Logic
-const appReducer = (state: AppState, action: AppAction): AppState => {
+// Storage Keys
+const STORAGE_KEYS = {
+  USER_PROFILE: 'user_profile',
+  SESSIONS: 'sessions',
+  ACHIEVEMENTS: 'achievements',
+  PILLAR_SCORES: 'pillar_scores',
+  AI_INSIGHTS: 'ai_insights',
+  APP_STATE: 'app_state'
+};
+
+// Reducer
+function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
-    case 'INITIALIZE_APP':
+    case 'INIT_SUCCESS':
       return {
         ...state,
         ...action.payload,
-        isInitialized: true,
-        isLoading: false
+        isLoading: false,
+        isInitialized: true
       };
-
+    
     case 'UPDATE_USER_PROFILE':
-      const updatedProfile = { ...state.userProfile, ...action.payload };
+      const updatedProfile = state.userProfile ? 
+        { ...state.userProfile, ...action.payload } : 
+        action.payload as UserProfile;
       return {
         ...state,
         userProfile: updatedProfile
       };
-
-    case 'UPDATE_PILLAR_SCORE':
-      const { pillar, score } = action.payload;
-      const newScores = { ...state.pillarScores, [pillar]: Math.min(100, Math.max(0, score)) };
-      
-      // Calculate level based on overall score
-      const overallScore = Object.values(newScores).reduce((sum, s) => sum + s, 0) / 5;
-      const newLevel = Math.floor(overallScore / 10) + 1;
-      
-      return {
-        ...state,
-        pillarScores: newScores,
-        userProfile: {
-          ...state.userProfile,
-          level: newLevel,
-          lastActiveDate: new Date().toISOString()
-        }
-      };
-
+    
     case 'ADD_SESSION':
-      const today = new Date().toDateString();
-      const isToday = state.sessionData.lastSessionDate === today;
-      
-      // Create session history entry
-      const newSession: SessionHistory = {
-        id: `session_${Date.now()}`,
-        pillar: action.payload.pillar,
-        duration: action.payload.duration,
-        improvement: action.payload.improvement,
-        date: new Date().toISOString(),
-        type: (action.payload.type as any) || 'training'
-      };
-
-      // Update pillar score based on improvement
-      const pillarKey = action.payload.pillar as keyof PillarScores;
-      const currentScore = state.pillarScores[pillarKey] || 0;
-      const improvedScore = Math.min(100, currentScore + action.payload.improvement);
-
-      // Calculate streak
-      const lastSessionDate = new Date(state.sessionData.lastSessionDate);
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      
-      let newStreak = state.userProfile.streak;
-      if (!isToday) {
-        if (lastSessionDate.toDateString() === yesterday.toDateString()) {
-          newStreak += 1; // Continue streak
-        } else if (state.sessionData.lastSessionDate === '') {
-          newStreak = 1; // First session
-        } else {
-          newStreak = 1; // Streak broken, restart
+      const newSessions = [...state.sessions, action.payload];
+      const todayCompleted = checkTodayGoalCompleted(newSessions, state.dailyGoals);
+      return {
+        ...state,
+        sessions: newSessions,
+        dailyGoals: {
+          ...state.dailyGoals,
+          completed: todayCompleted
+        },
+        streakData: {
+          ...state.streakData,
+          todayCompleted: todayCompleted
         }
-      }
-
+      };
+    
+    case 'UPDATE_PILLAR_SCORES':
       return {
         ...state,
-        pillarScores: {
-          ...state.pillarScores,
-          [pillarKey]: improvedScore
-        },
-        sessionData: {
-          ...state.sessionData,
-          completedToday: isToday ? state.sessionData.completedToday + 1 : 1,
-          todaySessions: isToday ? state.sessionData.todaySessions + 1 : 1,
-          totalTime: state.sessionData.totalTime + action.payload.duration,
-          currentWeekProgress: state.sessionData.currentWeekProgress + 1,
-          lastSessionDate: today
-        },
-        userProfile: {
-          ...state.userProfile,
-          totalSessions: state.userProfile.totalSessions + 1,
-          streak: newStreak,
-          lastActiveDate: new Date().toISOString()
-        },
-        sessionHistory: [newSession, ...state.sessionHistory].slice(0, 100) // Keep last 100 sessions
+        pillarScores: { ...state.pillarScores, ...action.payload }
       };
-
-    case 'SET_AI_INSIGHTS':
-      return {
-        ...state,
-        aiInsights: action.payload.map(insight => ({
-          ...insight,
-          createdDate: insight.createdDate || new Date().toISOString(),
-          isActive: true
-        }))
-      };
-
+    
     case 'ADD_ACHIEVEMENT':
-      // Check if achievement already exists
-      const existingAchievement = state.achievements.find(a => a.title === action.payload.title);
-      if (existingAchievement) return state;
-
       return {
         ...state,
-        achievements: [action.payload, ...state.achievements]
+        achievements: [{ ...action.payload, isNew: true }, ...state.achievements]
       };
-
-    case 'UPDATE_SESSION_DATA':
+    
+    case 'ADD_AI_INSIGHT':
       return {
         ...state,
-        sessionData: { ...state.sessionData, ...action.payload }
+        aiInsights: [action.payload, ...state.aiInsights.slice(0, 9)] // Keep max 10
       };
-
+    
+    case 'MARK_INSIGHT_READ':
+      return {
+        ...state,
+        aiInsights: state.aiInsights.map(insight => 
+          insight.id === action.payload ? { ...insight, isRead: true } : insight
+        )
+      };
+    
+    case 'UPDATE_STREAK':
+      return {
+        ...state,
+        streakData: {
+          ...state.streakData,
+          current: action.payload,
+          longest: Math.max(state.streakData.longest, action.payload)
+        }
+      };
+    
     case 'SET_LOADING':
-      return {
-        ...state,
-        isLoading: action.payload
-      };
-
-    case 'SYNC_DATA':
-      return {
-        ...state,
-        lastDataSync: new Date().toISOString()
-      };
-
-    case 'RESET_DATA':
-      return {
-        ...initialState,
-        isInitialized: true
-      };
-
+      return { ...state, isLoading: action.payload };
+    
+    case 'SYNC_COMPLETE':
+      return { ...state, lastSyncDate: action.payload };
+    
     default:
       return state;
   }
+}
+
+// Helper Functions
+const checkTodayGoalCompleted = (sessions: SessionData[], goals: any): boolean => {
+  const today = new Date().toDateString();
+  const todaySessions = sessions.filter(s => new Date(s.date).toDateString() === today);
+  
+  const sessionCount = todaySessions.length;
+  const totalMinutes = todaySessions.reduce((sum, s) => sum + s.duration, 0);
+  
+  return sessionCount >= goals.sessionTarget && totalMinutes >= goals.minutesTarget;
 };
 
 // Context
-const AppDataContext = createContext<{
+interface AppDataContextType {
   state: AppState;
   actions: {
-    updateUserProfile: (profile: Partial<UserProfile>) => void;
-    updatePillarScore: (pillar: keyof PillarScores, score: number) => void;
-    addSession: (session: { pillar: string; duration: number; improvement: number; type?: string }) => void;
-    setAIInsights: (insights: AIInsight[]) => void;
-    addAchievement: (achievement: Achievement) => void;
-    updateSessionData: (data: Partial<SessionData>) => void;
-    syncData: () => void;
-    resetData: () => void;
+    updateUserProfile: (updates: Partial<UserProfile>) => Promise<void>;
+    addSession: (session: Omit<SessionData, 'id'>) => Promise<void>;
+    updatePillarScores: (scores: Partial<PillarProgress>) => Promise<void>;
+    addAchievement: (achievement: Omit<Achievement, 'id' | 'unlockedDate'>) => Promise<void>;
+    addAIInsight: (insight: Omit<AIInsight, 'id' | 'dateGenerated'>) => Promise<void>;
+    markInsightRead: (insightId: string) => Promise<void>;
+    calculateStreak: () => Promise<void>;
+    syncData: () => Promise<void>;
+    clearAllData: () => Promise<void>;
   };
-} | null>(null);
+}
 
-// Storage Helper Functions
-const saveToStorage = async (key: string, data: any) => {
-  try {
-    if (Platform.OS === 'web') {
-      localStorage.setItem(key, JSON.stringify(data));
-    } else {
-      await AsyncStorage.setItem(key, JSON.stringify(data));
-    }
-  } catch (error) {
-    console.error(`Error saving ${key}:`, error);
-  }
-};
-
-const loadFromStorage = async (key: string) => {
-  try {
-    if (Platform.OS === 'web') {
-      const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : null;
-    } else {
-      const item = await AsyncStorage.getItem(key);
-      return item ? JSON.parse(item) : null;
-    }
-  } catch (error) {
-    console.error(`Error loading ${key}:`, error);
-    return null;
-  }
-};
+const AppDataContext = createContext<AppDataContextType | null>(null);
 
 // Provider Component
 export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(appReducer, initialState);
 
-  // Initialize app data from storage
+  // Initialize data from storage
   useEffect(() => {
-    initializeAppData();
+    initializeData();
   }, []);
 
-  // Auto-save data when state changes
-  useEffect(() => {
-    if (state.isInitialized) {
-      saveAppData();
-    }
-  }, [state.userProfile, state.pillarScores, state.sessionData, state.sessionHistory, state.achievements]);
-
-  const initializeAppData = async () => {
-    dispatch({ type: 'SET_LOADING', payload: true });
-    
+  const initializeData = async () => {
     try {
-      // Load all data from storage
-      const [
-        userProfile,
-        pillarScores,
-        sessionData,
-        aiInsights,
-        sessionHistory,
-        achievements
-      ] = await Promise.all([
-        loadFromStorage(STORAGE_KEYS.USER_PROFILE),
-        loadFromStorage(STORAGE_KEYS.PILLAR_SCORES),
-        loadFromStorage(STORAGE_KEYS.SESSION_DATA),
-        loadFromStorage(STORAGE_KEYS.AI_INSIGHTS),
-        loadFromStorage(STORAGE_KEYS.SESSION_HISTORY),
-        loadFromStorage(STORAGE_KEYS.ACHIEVEMENTS)
+      dispatch({ type: 'SET_LOADING', payload: true });
+
+      // Load all data from AsyncStorage
+      const [userProfile, sessions, achievements, pillarScores, aiInsights] = await Promise.all([
+        AsyncStorage.getItem(STORAGE_KEYS.USER_PROFILE),
+        AsyncStorage.getItem(STORAGE_KEYS.SESSIONS),
+        AsyncStorage.getItem(STORAGE_KEYS.ACHIEVEMENTS),
+        AsyncStorage.getItem(STORAGE_KEYS.PILLAR_SCORES),
+        AsyncStorage.getItem(STORAGE_KEYS.AI_INSIGHTS)
       ]);
 
-      // Initialize with loaded data or defaults
-      dispatch({
-        type: 'INITIALIZE_APP',
-        payload: {
-          userProfile: userProfile || initialState.userProfile,
-          pillarScores: pillarScores || initialState.pillarScores,
-          sessionData: sessionData || initialState.sessionData,
-          aiInsights: aiInsights || [],
-          sessionHistory: sessionHistory || [],
-          achievements: achievements || []
-        }
-      });
+      const loadedState: Partial<AppState> = {
+        userProfile: userProfile ? JSON.parse(userProfile) : createDefaultUser(),
+        sessions: sessions ? JSON.parse(sessions) : [],
+        achievements: achievements ? JSON.parse(achievements) : [],
+        pillarScores: pillarScores ? JSON.parse(pillarScores) : { body: 0, mind: 0, heart: 0, spirit: 0, diet: 0 },
+        aiInsights: aiInsights ? JSON.parse(aiInsights) : []
+      };
 
-      console.log('✅ App data initialized successfully');
-    } catch (error) {
-      console.error('❌ Error initializing app data:', error);
-      dispatch({ type: 'INITIALIZE_APP', payload: {} });
-    }
-  };
-
-  const saveAppData = async () => {
-    try {
-      await Promise.all([
-        saveToStorage(STORAGE_KEYS.USER_PROFILE, state.userProfile),
-        saveToStorage(STORAGE_KEYS.PILLAR_SCORES, state.pillarScores),
-        saveToStorage(STORAGE_KEYS.SESSION_DATA, state.sessionData),
-        saveToStorage(STORAGE_KEYS.AI_INSIGHTS, state.aiInsights),
-        saveToStorage(STORAGE_KEYS.SESSION_HISTORY, state.sessionHistory),
-        saveToStorage(STORAGE_KEYS.ACHIEVEMENTS, state.achievements)
-      ]);
+      dispatch({ type: 'INIT_SUCCESS', payload: loadedState });
       
-      dispatch({ type: 'SYNC_DATA' });
+      // Calculate streak and update profile stats
+      await calculateStreak();
+      
     } catch (error) {
-      console.error('❌ Error saving app data:', error);
+      console.error('Error initializing data:', error);
+      // Initialize with default user if error
+      dispatch({ 
+        type: 'INIT_SUCCESS', 
+        payload: { userProfile: createDefaultUser() } 
+      });
     }
   };
 
-  // Action handlers
+  const createDefaultUser = (): UserProfile => ({
+    id: `user_${Date.now()}`,
+    name: 'Wellness Seeker',
+    email: '',
+    level: 1,
+    totalSessions: 0,
+    streak: 0,
+    longestStreak: 0,
+    joinDate: new Date().toISOString(),
+    lastActiveDate: new Date().toISOString(),
+    preferences: {
+      onboardingCompleted: false,
+      hasSeenTutorial: false,
+      culturalContent: true,
+      difficulty: 'beginner',
+      preferredPillars: [],
+      reminderTime: '09:00',
+      darkMode: false
+    },
+    stats: {
+      totalMinutes: 0,
+      averageSessionLength: 0,
+      favoriteTimeOfDay: 'morning',
+      mostUsedPillar: 'spirit',
+      consistencyScore: 0
+    }
+  });
+
+  // Actions
   const actions = {
-    updateUserProfile: (profile: Partial<UserProfile>) => {
-      dispatch({ type: 'UPDATE_USER_PROFILE', payload: profile });
+    updateUserProfile: async (updates: Partial<UserProfile>) => {
+      dispatch({ type: 'UPDATE_USER_PROFILE', payload: updates });
+      
+      if (state.userProfile) {
+        const updatedProfile = { ...state.userProfile, ...updates };
+        await AsyncStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(updatedProfile));
+      }
     },
 
-    updatePillarScore: (pillar: keyof PillarScores, score: number) => {
-      dispatch({ type: 'UPDATE_PILLAR_SCORE', payload: { pillar, score } });
-    },
+    addSession: async (sessionData: Omit<SessionData, 'id'>) => {
+      const session: SessionData = {
+        ...sessionData,
+        id: `session_${Date.now()}`
+      };
 
-    addSession: (session: { pillar: string; duration: number; improvement: number; type?: string }) => {
       dispatch({ type: 'ADD_SESSION', payload: session });
       
+      // Update storage
+      const updatedSessions = [...state.sessions, session];
+      await AsyncStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(updatedSessions));
+      
+      // Update pillar scores based on session
+      const pillarBoost = calculatePillarBoost(session);
+      await actions.updatePillarScores({ [session.pillar]: pillarBoost });
+      
       // Check for achievements
-      setTimeout(() => {
-        checkAndAddAchievements(state);
-      }, 100);
+      await checkSessionAchievements(session);
     },
 
-    setAIInsights: (insights: AIInsight[]) => {
-      dispatch({ type: 'SET_AI_INSIGHTS', payload: insights });
+    updatePillarScores: async (scores: Partial<PillarProgress>) => {
+      dispatch({ type: 'UPDATE_PILLAR_SCORES', payload: scores });
+      
+      const updatedScores = { ...state.pillarScores, ...scores };
+      await AsyncStorage.setItem(STORAGE_KEYS.PILLAR_SCORES, JSON.stringify(updatedScores));
     },
 
-    addAchievement: (achievement: Achievement) => {
+    addAchievement: async (achievementData: Omit<Achievement, 'id' | 'unlockedDate'>) => {
+      const achievement: Achievement = {
+        ...achievementData,
+        id: `achievement_${Date.now()}`,
+        unlockedDate: new Date().toISOString()
+      };
+
       dispatch({ type: 'ADD_ACHIEVEMENT', payload: achievement });
+      
+      const updatedAchievements = [achievement, ...state.achievements];
+      await AsyncStorage.setItem(STORAGE_KEYS.ACHIEVEMENTS, JSON.stringify(updatedAchievements));
     },
 
-    updateSessionData: (data: Partial<SessionData>) => {
-      dispatch({ type: 'UPDATE_SESSION_DATA', payload: data });
+    addAIInsight: async (insightData: Omit<AIInsight, 'id' | 'dateGenerated'>) => {
+      const insight: AIInsight = {
+        ...insightData,
+        id: `insight_${Date.now()}`,
+        dateGenerated: new Date().toISOString()
+      };
+
+      dispatch({ type: 'ADD_AI_INSIGHT', payload: insight });
+      
+      const updatedInsights = [insight, ...state.aiInsights.slice(0, 9)];
+      await AsyncStorage.setItem(STORAGE_KEYS.AI_INSIGHTS, JSON.stringify(updatedInsights));
     },
 
-    syncData: () => {
-      saveAppData();
+    markInsightRead: async (insightId: string) => {
+      dispatch({ type: 'MARK_INSIGHT_READ', payload: insightId });
+      
+      const updatedInsights = state.aiInsights.map(insight => 
+        insight.id === insightId ? { ...insight, isRead: true } : insight
+      );
+      await AsyncStorage.setItem(STORAGE_KEYS.AI_INSIGHTS, JSON.stringify(updatedInsights));
     },
 
-    resetData: () => {
-      dispatch({ type: 'RESET_DATA' });
-      // Clear storage
-      Object.values(STORAGE_KEYS).forEach(key => {
-        if (Platform.OS === 'web') {
-          localStorage.removeItem(key);
-        } else {
-          AsyncStorage.removeItem(key);
-        }
+    calculateStreak: async () => {
+      const streak = calculateCurrentStreak(state.sessions);
+      dispatch({ type: 'UPDATE_STREAK', payload: streak });
+      
+      // Update user profile with new streak
+      if (state.userProfile) {
+        await actions.updateUserProfile({ 
+          streak,
+          longestStreak: Math.max(state.userProfile.longestStreak, streak)
+        });
+      }
+    },
+
+    syncData: async () => {
+      // TODO: Implement cloud sync
+      dispatch({ type: 'SYNC_COMPLETE', payload: new Date().toISOString() });
+    },
+
+    clearAllData: async () => {
+      await Promise.all([
+        AsyncStorage.removeItem(STORAGE_KEYS.USER_PROFILE),
+        AsyncStorage.removeItem(STORAGE_KEYS.SESSIONS),
+        AsyncStorage.removeItem(STORAGE_KEYS.ACHIEVEMENTS),
+        AsyncStorage.removeItem(STORAGE_KEYS.PILLAR_SCORES),
+        AsyncStorage.removeItem(STORAGE_KEYS.AI_INSIGHTS)
+      ]);
+      
+      dispatch({ 
+        type: 'INIT_SUCCESS', 
+        payload: { 
+          ...initialState, 
+          userProfile: createDefaultUser(),
+          isLoading: false,
+          isInitialized: true
+        } 
       });
     }
   };
 
-  // Achievement checking logic
-  const checkAndAddAchievements = (currentState: AppState) => {
-    const achievements: Achievement[] = [];
+  // Helper functions
+  const calculatePillarBoost = (session: SessionData): number => {
+    const baseBoost = Math.min(session.duration * 0.5, 10); // Max 10 points per session
+    const scoreMultiplier = session.score / 100;
+    const currentScore = state.pillarScores[session.pillar as keyof PillarProgress] || 0;
     
-    // Streak achievements
-    if (currentState.userProfile.streak === 7) {
-      achievements.push({
-        id: `achievement_${Date.now()}_1`,
-        title: 'Week Warrior',
-        description: 'Completed 7 consecutive days of optimization',
-        pillar: 'overall',
-        unlockedDate: new Date().toISOString(),
-        rarity: 'common'
-      });
-    }
+    // Diminishing returns as pillar score gets higher
+    const diminishingFactor = Math.max(0.1, 1 - (currentScore / 200));
     
-    if (currentState.userProfile.streak === 30) {
-      achievements.push({
-        id: `achievement_${Date.now()}_2`,
-        title: 'Monthly Master',
-        description: 'Achieved 30-day optimization streak',
-        pillar: 'overall',
-        unlockedDate: new Date().toISOString(),
-        rarity: 'rare'
-      });
-    }
+    return Math.round(baseBoost * scoreMultiplier * diminishingFactor);
+  };
 
-    // Session count achievements
-    if (currentState.userProfile.totalSessions === 50) {
-      achievements.push({
-        id: `achievement_${Date.now()}_3`,
-        title: 'Half Century',
-        description: 'Completed 50 optimization sessions',
-        pillar: 'overall',
-        unlockedDate: new Date().toISOString(),
-        rarity: 'common'
-      });
-    }
-
-    // Pillar mastery achievements
-    Object.entries(currentState.pillarScores).forEach(([pillar, score]) => {
-      if (score >= 90) {
-        achievements.push({
-          id: `achievement_${Date.now()}_${pillar}`,
-          title: `${pillar.toUpperCase()} Mastery`,
-          description: `Achieved 90%+ optimization in ${pillar} pillar`,
-          pillar,
-          unlockedDate: new Date().toISOString(),
-          rarity: 'epic'
-        });
+  const calculateCurrentStreak = (sessions: SessionData[]): number => {
+    if (sessions.length === 0) return 0;
+    
+    const sortedSessions = sessions
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    let streak = 0;
+    let currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0);
+    
+    for (let i = 0; i < 30; i++) { // Check last 30 days
+      const dayString = currentDate.toDateString();
+      const hasSessionToday = sortedSessions.some(session => 
+        new Date(session.date).toDateString() === dayString
+      );
+      
+      if (hasSessionToday) {
+        streak++;
+      } else if (i > 0) { // Allow today to be incomplete
+        break;
       }
-    });
+      
+      currentDate.setDate(currentDate.getDate() - 1);
+    }
+    
+    return streak;
+  };
 
-    // Add achievements
-    achievements.forEach(achievement => {
-      dispatch({ type: 'ADD_ACHIEVEMENT', payload: achievement });
-    });
+  const checkSessionAchievements = async (session: SessionData) => {
+    const achievements = [];
+    
+    // First session achievement
+    if (state.sessions.length === 0) {
+      achievements.push({
+        title: 'First Steps',
+        description: 'Completed your first session!',
+        pillar: 'overall',
+        rarity: 'common' as const
+      });
+    }
+    
+    // Pillar-specific achievements
+    const pillarSessions = state.sessions.filter(s => s.pillar === session.pillar).length + 1;
+    if (pillarSessions === 5 || pillarSessions === 10 || pillarSessions === 25) {
+      achievements.push({
+        title: `${session.pillar.charAt(0).toUpperCase() + session.pillar.slice(1)} Devotee`,
+        description: `Completed ${pillarSessions} ${session.pillar} sessions`,
+        pillar: session.pillar,
+        rarity: pillarSessions >= 25 ? 'epic' as const : pillarSessions >= 10 ? 'rare' as const : 'common' as const
+      });
+    }
+    
+    // Duration achievements
+    if (session.duration >= 30 && !state.achievements.some(a => a.title === 'Marathon Meditator')) {
+      achievements.push({
+        title: 'Marathon Meditator',
+        description: 'Completed a 30+ minute session',
+        pillar: session.pillar,
+        rarity: 'rare' as const
+      });
+    }
+    
+    // Add all achievements
+    for (const achievement of achievements) {
+      await actions.addAchievement(achievement);
+    }
   };
 
   return (
@@ -521,7 +523,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({ child
   );
 };
 
-// Custom hooks
+// Custom Hooks
 export const useAppData = () => {
   const context = useContext(AppDataContext);
   if (!context) {
@@ -533,46 +535,22 @@ export const useAppData = () => {
 export const useAppDataSelectors = () => {
   const { state } = useAppData();
   
-  // Calculate derived values
-  const overallScore = Math.round(
-    Object.values(state.pillarScores).reduce((sum, score) => sum + score, 0) / 5
-  );
-
-  const weeklyProgress = Math.min(100, (state.sessionData.currentWeekProgress / state.sessionData.weeklyGoal) * 100);
-
-  const recentSessions = state.sessionHistory.slice(0, 10);
-
-  const activeInsights = state.aiInsights.filter(insight => insight.isActive);
-
   return {
-    // Direct state
-    ...state,
-    
-    // Calculated values
-    overallScore,
-    weeklyProgress,
-    recentSessions,
-    activeInsights,
-    
-    // Utility functions
-    getSessionsByPillar: (pillar: string) => 
-      state.sessionHistory.filter(session => session.pillar === pillar),
-    
-    getPillarTrend: (pillar: keyof PillarScores) => {
-      const pillarSessions = state.sessionHistory
-        .filter(session => session.pillar === pillar)
-        .slice(0, 5);
-      
-      if (pillarSessions.length < 2) return 'stable';
-      
-      const recent = pillarSessions.slice(0, 3).reduce((sum, s) => sum + s.improvement, 0);
-      const older = pillarSessions.slice(3).reduce((sum, s) => sum + s.improvement, 0);
-      
-      if (recent > older * 1.2) return 'improving';
-      if (recent < older * 0.8) return 'declining';
-      return 'stable';
-    }
+    userProfile: state.userProfile,
+    pillarScores: state.pillarScores,
+    overallScore: Object.values(state.pillarScores).reduce((sum, score) => sum + score, 0) / 5,
+    sessions: state.sessions,
+    todaySessions: state.sessions.filter(s => 
+      new Date(s.date).toDateString() === new Date().toDateString()
+    ),
+    achievements: state.achievements,
+    newAchievements: state.achievements.filter(a => a.isNew),
+    aiInsights: state.aiInsights,
+    unreadInsights: state.aiInsights.filter(i => !i.isRead),
+    dailyGoals: state.dailyGoals,
+    streakData: state.streakData,
+    isLoading: state.isLoading,
+    isInitialized: state.isInitialized,
+    lastSyncDate: state.lastSyncDate
   };
 };
-
-export default AppDataContext;
