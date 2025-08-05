@@ -1,37 +1,119 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+# .gitignore - COMPREHENSIVE FOR 5 PILLARS OF LIFE APP
 
-# dependencies
+# Dependencies
 node_modules/
+npm-debug.*
+yarn-debug.*
+yarn-error.*
 
 # Expo
 .expo/
 dist/
 web-build/
+.expo-shared/
 expo-env.d.ts
 
-# Native
+# React Native
+.react-native/
+
+# Native builds
+ios/
+android/
 .kotlin/
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production
+.env*.local
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor directories and files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs
+logs/
+*.log
+lerna-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# Build outputs
+build/
+dist/
+
+# TypeScript
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Dependency directories
+jspm_packages/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# EAS
+.easignore
+
+# Sensitive files
 *.orig.*
 *.jks
 *.p8
 *.p12
 *.key
 *.mobileprovision
+*.pem
+service-account-key.json
+google-services.json
+GoogleService-Info.plist
 
-# Metro
-.metro-health-check*
-
-# debug
+# Debug files
 npm-debug.*
 yarn-debug.*
 yarn-error.*
 
-# macOS
-.DS_Store
-*.pem
+# Metro
+.metro-health-check*
 
-# local env files
-.env*.local
+# Temporary folders
+tmp/
+temp/
 
-# typescript
-*.tsbuildinfo
+# 5 Pillars of Life specific
+# Add any app-specific files to ignore here
+user-data/
+cache/
