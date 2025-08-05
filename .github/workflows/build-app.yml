@@ -20,15 +20,22 @@ jobs:
         cache: 'npm'
         
     - name: Install dependencies
-      run: npm install
+      run: npm ci
       
-    - name: Setup EAS
+    - name: Setup Expo
       uses: expo/expo-github-action@v8
       with:
-        eas-version: latest
+        expo-version: latest
         token: ${{ secrets.EXPO_TOKEN }}
         
-    - name: Build Android APK (New Expo CLI)
-      run: |
-        npx expo install --fix
-        npx eas build --platform android --profile preview --non-interactive
+    - name: Install Expo CLI globally
+      run: npm install -g @expo/cli
+        
+    - name: Install EAS CLI globally
+      run: npm install -g @expo/eas-cli
+        
+    - name: Fix Expo dependencies
+      run: npx expo install --fix
+      
+    - name: Build Android APK
+      run: eas build --platform android --profile preview --non-interactive
