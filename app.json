@@ -1,17 +1,16 @@
-// app.json - UPDATED WITH STORE-READY ASSETS
 {
   "expo": {
     "name": "5 Pillars of Life",
-    "slug": "5pillarsoflife-neural-optimization",
+    "slug": "5pillarsoflife-neural-optimization", 
+    "owner": "radhakrishn",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#8B5CF6"
-    },
+    "extra": {
+      "eas": {
+        "projectId": "97680ddd-daf7-49b0-b01f-2d57230a8750"
+      }
+    }
+  }
+},
     "assetBundlePatterns": [
       "**/*"
     ],
