@@ -1,0 +1,337 @@
+name: 🚀 5 Pillars Release Manager
+
+on:
+  # Automatic release when you push a version tag
+  push:
+    tags:
+      - 'v*'
+  
+  # Manual release trigger
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch   # 1.0.0 → 1.0.1 (bug fixes)
+          - minor   # 1.0.0 → 1.1.0 (new features)
+          - major   # 1.0.0 → 2.0.0 (breaking changes)
+      
+      release_notes:
+        description: 'Custom release notes (optional)'
+        required: false
+        type: string
+        default: ''
+      
+      build_profile:
+        description: 'Build profile'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - preview
+
+jobs:
+  # 🏷️ Create Release Tag (for manual triggers)
+  create-tag:
+    name: 🏷️ Create Version Tag
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    outputs:
+      new_version: ${{ steps.version.outputs.new_version }}
+      tag_name: ${{ steps.version.outputs.tag_name }}
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: 📱 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 🏷️ Bump version and create tag
+        id: version
+        run: |
+          # Configure git
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          # Get current version
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "📱 Current version: $CURRENT_VERSION"
+          
+          # Bump version
+          npm version ${{ github.event.inputs.version_type }} --no-git-tag-version
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "🚀 New version: $NEW_VERSION"
+          
+          # Create tag
+          TAG_NAME="v$NEW_VERSION"
+          git add package.json
+          git commit -m "🏷️ Bump version to $NEW_VERSION"
+          git tag -a "$TAG_NAME" -m "🚀 Release $TAG_NAME"
+          
+          # Push changes and tag
+          git push origin main
+          git push origin "$TAG_NAME"
+          
+          # Set outputs
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+
+  # 🧪 Test Before Release
+  test:
+    name: 🧪 Pre-Release Tests
+    runs-on: ubuntu-latest
+    needs: [create-tag]
+    if: always() && !cancelled()
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.create-tag.outputs.tag_name || github.ref }}
+
+      - name: 📱 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🧪 Run tests
+        run: npm run test
+
+      - name: 🔍 Run linting
+        run: npm run lint
+
+      - name: 📊 TypeScript check
+        run: |
+          if [ -f "tsconfig.json" ]; then
+            npx tsc --noEmit
+          fi
+
+  # 🏗️ Build Release APK
+  build-release:
+    name: 🏗️ Build Release APK
+    runs-on: ubuntu-latest
+    needs: [create-tag, test]
+    if: always() && needs.test.result == 'success'
+    outputs:
+      apk_path: ${{ steps.build.outputs.apk_path }}
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.create-tag.outputs.tag_name || github.ref }}
+
+      - name: 📱 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🏗️ Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 🔧 Install CLI tools
+        run: |
+          npm install -g @expo/cli
+          npm install -g eas-cli
+
+      - name: 🔧 Fix dependencies
+        run: npx expo install --fix
+
+      - name: 📋 Get version info
+        id: version_info
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ needs.create-tag.outputs.new_version }}"
+            TAG_NAME="${{ needs.create-tag.outputs.tag_name }}"
+          else
+            TAG_NAME="${{ github.ref_name }}"
+            VERSION="${TAG_NAME#v}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+
+      - name: 🤖 Build APK
+        id: build
+        run: |
+          BUILD_PROFILE="${{ github.event.inputs.build_profile || 'production' }}"
+          echo "🏗️ Building with profile: $BUILD_PROFILE"
+          
+          # Build APK
+          eas build --platform android --profile $BUILD_PROFILE --non-interactive --wait
+          
+          # Find the APK file
+          APK_FILE=$(find . -name "*.apk" -type f | head -1)
+          if [ -n "$APK_FILE" ]; then
+            echo "📱 APK found: $APK_FILE"
+            echo "apk_path=$APK_FILE" >> $GITHUB_OUTPUT
+          else
+            echo "❌ No APK file found!"
+            exit 1
+          fi
+
+      - name: 📦 Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: 5-pillars-release-${{ steps.version_info.outputs.version }}
+          path: ${{ steps.build.outputs.apk_path }}
+          retention-days: 90
+
+  # 🚀 Create GitHub Release
+  create-release:
+    name: 🚀 Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [create-tag, test, build-release]
+    if: always() && needs.build-release.result == 'success'
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.create-tag.outputs.tag_name || github.ref }}
+
+      - name: 📋 Get release info
+        id: release_info
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ needs.create-tag.outputs.new_version }}"
+            TAG_NAME="${{ needs.create-tag.outputs.tag_name }}"
+          else
+            TAG_NAME="${{ github.ref_name }}"
+            VERSION="${TAG_NAME#v}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+
+      - name: 📥 Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: 5-pillars-release-${{ steps.release_info.outputs.version }}
+          path: ./release-assets/
+
+      - name: 📝 Generate Release Notes
+        id: release_notes
+        run: |
+          CUSTOM_NOTES="${{ github.event.inputs.release_notes }}"
+          
+          if [ -n "$CUSTOM_NOTES" ]; then
+            RELEASE_BODY="$CUSTOM_NOTES"
+          else
+            RELEASE_BODY="## 🕉️ 5 Pillars of Life - Version ${{ steps.release_info.outputs.version }}
+          
+          **🎉 What's New in This Release:**
+          - 🏛️ Enhanced wellness tracking across all 5 pillars
+          - 🔔 Improved Sanskrit wisdom notifications
+          - 👥 Better social and community features
+          - 📱 Performance optimizations and bug fixes
+          - 🌙 Dark mode and accessibility improvements
+          
+          **📱 How to Install:**
+          1. 📥 Download the APK file below
+          2. ⚙️ Enable \"Install unknown apps\" on your Android device
+          3. 📲 Install the APK and start your wellness journey!
+          
+          **🔧 Technical Details:**
+          - 🏷️ Version: ${{ steps.release_info.outputs.version }}
+          - 🔨 Build: #${{ github.run_number }}
+          - 📝 Commit: ${{ github.sha }}
+          - 🕐 Built: $(date -u)
+          - 🏗️ Profile: ${{ github.event.inputs.build_profile || 'production' }}
+          
+          **🆓 Built with free GitHub Actions**
+          **🕉️ Where ancient wisdom meets modern technology**
+          
+          ---
+          **🐛 Found a bug?** [Report it here](https://github.com/${{ github.repository }}/issues)
+          **💡 Have suggestions?** [Share them here](https://github.com/${{ github.repository }}/discussions)
+          **⭐ Enjoying the app?** Please star this repository!"
+          fi
+          
+          # Save to file for GitHub release
+          echo "$RELEASE_BODY" > release_notes.md
+
+      - name: 🚀 Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.release_info.outputs.tag_name }}
+          name: "🕉️ 5 Pillars of Life ${{ steps.release_info.outputs.tag_name }}"
+          body_path: release_notes.md
+          files: ./release-assets/*.apk
+          draft: false
+          prerelease: false
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📊 Release Summary
+        run: |
+          echo "🎉 ===== RELEASE COMPLETED SUCCESSFULLY ====="
+          echo "🏷️ Version: ${{ steps.release_info.outputs.version }}"
+          echo "📦 Tag: ${{ steps.release_info.outputs.tag_name }}"
+          echo "🔗 Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.release_info.outputs.tag_name }}"
+          echo "📱 APK Available for Download"
+          echo "🆓 Total Cost: FREE with GitHub Actions!"
+          echo "🕉️ Ancient wisdom meets modern technology"
+          echo "============================================"
+
+  # 📧 Notify on Failure
+  notify-failure:
+    name: 📧 Failure Notification
+    runs-on: ubuntu-latest
+    needs: [create-tag, test, build-release, create-release]
+    if: always() && (needs.test.result == 'failure' || needs.build-release.result == 'failure' || needs.create-release.result == 'failure')
+    steps:
+      - name: 📧 Create Issue on Failure
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `🚨 Release Failure - ${context.ref}`;
+            const body = `
+            ## 🚨 Release Process Failed
+            
+            **Details:**
+            - **Workflow:** ${{ github.workflow }}
+            - **Run ID:** ${{ github.run_id }}
+            - **Trigger:** ${{ github.event_name }}
+            - **Branch/Tag:** ${{ github.ref }}
+            - **Commit:** ${{ github.sha }}
+            - **Actor:** ${{ github.actor }}
+            
+            **Job Results:**
+            - 🏷️ Create Tag: ${{ needs.create-tag.result }}
+            - 🧪 Tests: ${{ needs.test.result }}
+            - 🏗️ Build: ${{ needs.build-release.result }}
+            - 🚀 Release: ${{ needs.create-release.result }}
+            
+            **Next Steps:**
+            1. Check the [workflow logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            2. Fix the identified issues
+            3. Re-run the release process
+            
+            This issue was automatically created by GitHub Actions.
+            `;
+            
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['bug', 'release-failure', 'automated']
+            });
